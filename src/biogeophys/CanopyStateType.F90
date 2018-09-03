@@ -29,6 +29,8 @@ module CanopyStateType
      real(r8) , pointer :: tsai_patch               (:)   ! patch canopy one-sided stem area index, no burying by snow
      real(r8) , pointer :: elai_patch               (:)   ! patch canopy one-sided leaf area index with burying by snow
      real(r8) , pointer :: esai_patch               (:)   ! patch canopy one-sided stem area index with burying by snow
+     real(r8) , pointer :: smi_patch                (:)   ! stem mass index (kg/m**2)
+     real(r8) , pointer :: lmi_patch                (:)   ! leaf mass index (kg/m**2)
      real(r8) , pointer :: elai240_patch            (:)   ! patch canopy one-sided leaf area index with burying by snow average over 10days 
      real(r8) , pointer :: laisun_patch             (:)   ! patch patch sunlit projected leaf area index  
      real(r8) , pointer :: laisha_patch             (:)   ! patch patch shaded projected leaf area index  
@@ -119,6 +121,8 @@ contains
     allocate(this%tlai_patch               (begp:endp))           ; this%tlai_patch               (:)   = nan
     allocate(this%tsai_patch               (begp:endp))           ; this%tsai_patch               (:)   = nan
     allocate(this%elai_patch               (begp:endp))           ; this%elai_patch               (:)   = nan
+    allocate(this%smi_patch                (begp:endp))           ; this%smi_patch                (:)   = nan
+    allocate(this%lmi_patch                (begp:endp))           ; this%lmi_patch                (:)   = nan
     allocate(this%elai240_patch            (begp:endp))           ; this%elai240_patch            (:)   = nan
     allocate(this%esai_patch               (begp:endp))           ; this%esai_patch               (:)   = nan
     allocate(this%laisun_patch             (begp:endp))           ; this%laisun_patch             (:)   = nan
@@ -177,6 +181,18 @@ contains
     call hist_addfld1d (fname='ESAI', units='m^2/m^2', &
          avgflag='A', long_name='exposed one-sided stem area index', &
          ptr_patch=this%esai_patch)
+
+    this%smi_patch(begp:endp) = spval
+    call hist_addfld1d (fname='SMI', units='kg/m^2', &
+         avgflag='A', long_name='stem mass index', &
+         ptr_patch=this%smi_patch)
+
+    this%lmi_patch(begp:endp) = spval
+    call hist_addfld1d (fname='LMI', units='kg/m^2', &
+         avgflag='A', long_name='leaf mass index', &
+         ptr_patch=this%lmi_patch)
+
+
 
     this%tlai_patch(begp:endp) = spval
     call hist_addfld1d (fname='TLAI', units='m^2/m^2', &
@@ -513,6 +529,8 @@ contains
        this%tsai_patch(p)       = 0._r8
        this%elai_patch(p)       = 0._r8
        this%esai_patch(p)       = 0._r8
+       this%smi_patch(p)        = 0._r8
+       this%lmi_patch(p)        = 0._r8
        this%htop_patch(p)       = 0._r8
        this%hbot_patch(p)       = 0._r8
        this%dewmx_patch(p)      = 0.1_r8
@@ -584,6 +602,16 @@ contains
     call restartvar(ncid=ncid, flag=flag, varname='esai', xtype=ncd_double,  &
          dim1name='pft', long_name='one-sided stem area index, with burying by snow', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%esai_patch)
+
+    call restartvar(ncid=ncid, flag=flag, varname='smi', xtype=ncd_double,  &
+         dim1name='pft', long_name='stem mass index', units='kg/m^2', &
+         interpinic_flag='interp', readvar=readvar, data=this%smi_patch)
+
+    call restartvar(ncid=ncid, flag=flag, varname='lmi', xtype=ncd_double,  &
+         dim1name='pft', long_name='leaf mass index', units='kg/m^2', &
+         interpinic_flag='interp', readvar=readvar, data=this%lmi_patch)
+
+
     
     call restartvar(ncid=ncid, flag=flag, varname='htop', xtype=ncd_double,  &
          dim1name='pft', long_name='canopy top', units='m', &

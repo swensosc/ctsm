@@ -52,25 +52,6 @@ module CanopyFluxesMod
   ! !PUBLIC TYPES:
   implicit none
   !
-  ! !PUBLIC VARIABLES:
-
-  type :: canopyflux_params_type
-     real(r8), allocatable, public  :: dbh          (:)
-     real(r8), allocatable, public  :: fbw          (:)
-     real(r8), allocatable, public  :: nstem        (:)
-     real(r8), allocatable, public  :: rstem        (:)
-     real(r8), allocatable, public  :: wood_density (:)
-  contains
-     procedure, private :: allocParams
-  end type canopyflux_params_type
-  !
-  type(canopyflux_params_type), public, protected :: params_inst  ! params_inst is populated in readParamsMod 
-
-  type, public :: canopyflux_type
-   contains
-     procedure, public  :: ReadParams
-  end type canopyflux_type
-
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: CanopyFluxesReadNML     ! Read in namelist settings
   public :: CanopyFluxes            ! Calculate canopy fluxes
@@ -94,76 +75,6 @@ module CanopyFluxesMod
   !------------------------------------------------------------------------------
 
 contains
-
-  !-----------------------------------------------------------------------
-  subroutine allocParams ( this )
-    !
-    use shr_infnan_mod      , only : nan => shr_infnan_nan, assignment(=)
-    implicit none
-
-    ! !ARGUMENTS:
-    class(canopyflux_params_type) :: this
-    !
-    ! !LOCAL VARIABLES:
-    character(len=32)  :: subname = 'allocParams'
-    !-----------------------------------------------------------------------
-
-    ! allocate parameters
-
-    allocate( this%dbh         (0:mxpft) )          ; this%dbh(:)          = nan
-    allocate( this%fbw         (0:mxpft) )          ; this%fbw(:)          = nan
-    allocate( this%nstem       (0:mxpft) )          ; this%nstem(:)        = nan
-    allocate( this%rstem       (0:mxpft) )          ; this%rstem(:)        = nan
-    allocate( this%wood_density(0:mxpft) )          ; this%wood_density(:) = nan
-
-  end subroutine allocParams
-
-  !-----------------------------------------------------------------------
-  subroutine readParams ( this, ncid )
-    !
-    ! !USES:
-    use ncdio_pio , only : file_desc_t,ncd_io
-    implicit none
-
-    ! !ARGUMENTS:
-    class(canopyflux_type) :: this
-    type(file_desc_t),intent(inout) :: ncid   ! pio netCDF file id
-    !
-    ! !LOCAL VARIABLES:
-    character(len=32)  :: subname = 'readParams'
-    character(len=100) :: errCode = '-Error reading in parameters file:'
-    logical            :: readv ! has variable been read in or not
-    real(r8)           :: temp1d(0:mxpft) ! temporary to read in parameter
-    character(len=100) :: tString ! temp. var for reading
-    !-----------------------------------------------------------------------
-
-    ! read in parameters
-
-
-    call params_inst%allocParams()
-
-    tString = "dbh"
-    call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(sourcefile, __LINE__))
-    params_inst%dbh=temp1d
-    tString = "fbw"
-    call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(sourcefile, __LINE__))
-    params_inst%fbw=temp1d
-    tString = "nstem"
-    call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(sourcefile, __LINE__))
-    params_inst%nstem=temp1d
-    tString = "rstem"
-    call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(sourcefile, __LINE__))
-    params_inst%rstem=temp1d
-    tString = "wood_density"
-    call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(sourcefile, __LINE__))
-    params_inst%wood_density=temp1d
-
-  end subroutine readParams
 
   !------------------------------------------------------------------------
   subroutine CanopyFluxesReadNML(NLFilename)
@@ -189,7 +100,7 @@ contains
     character(len=*), parameter :: nmlname = 'canopyfluxes_inparm'
     !-----------------------------------------------------------------------
 
-    namelist /canopyfluxes_inparm/ use_undercanopy_stability,use_biomass_heat_storage
+    namelist /canopyfluxes_inparm/ use_undercanopy_stability
 
     ! Initialize options to default values, in case they are not specified in
     ! the namelist
@@ -211,7 +122,6 @@ contains
     end if
 
     call shr_mpi_bcast (use_undercanopy_stability, mpicom)
-    call shr_mpi_bcast (use_biomass_heat_storage, mpicom)
 
     if (masterproc) then
        write(iulog,*) ' '
@@ -456,6 +366,7 @@ contains
     real(r8) :: cp_wood
     real(r8) :: carea_stem
     real(r8) :: rstema
+    real(r8) :: bh_d (bounds%begp:bounds%endp)     ! breast height diameter
     ! biomass parameters
     real(r8), parameter :: c_to_b = 2.0_r8         !(g biomass /g C)
 
@@ -481,6 +392,11 @@ contains
          max_dayl             => grc%max_dayl                              , & ! Input:  [real(r8) (:)   ]  maximum daylength for this grid cell (s)
 
          dleaf                  => pftcon%dleaf                                 , & ! Input:  characteristic leaf dimension (m)                                     
+         dbh                    => pftcon%dbh                                   , & ! Input:  diameter at brest height (m)                                    
+         fbw                    => pftcon%fbw                                   , & ! Input:  fraction of biomass that is water
+         nstem                  => pftcon%nstem                                 , & ! Input:  stem number density (#ind/m2)
+         rstem                  => pftcon%rstem                                 , & ! Input:  stem restistance (s/m) 
+         wood_density           => pftcon%wood_density                          , & ! Input:  dry wood density (kg/m3)
 
          forc_lwrad             => atm2lnd_inst%forc_lwrad_downscaled_col       , & ! Input:  [real(r8) (:)   ]  downward infrared (longwave) radiation (W/m**2)                       
          forc_q                 => atm2lnd_inst%forc_q_downscaled_col           , & ! Input:  [real(r8) (:)   ]  atmospheric specific humidity (kg/kg)                                 
@@ -529,7 +445,10 @@ contains
 
          frac_veg_nosno         => canopystate_inst%frac_veg_nosno_patch        , & ! Input:  [integer  (:)   ]  fraction of vegetation not covered by snow (0 OR 1) [-]
          elai                   => canopystate_inst%elai_patch                  , & ! Input:  [real(r8) (:)   ]  one-sided leaf area index with burying by snow                        
-         esai                   => canopystate_inst%esai_patch                  , & ! Input:  [real(r8) (:)   ]  one-sided stem area index with burying by snow                        
+         esai                   => canopystate_inst%esai_patch                  , & ! Input:  [real(r8) (:)   ]  one-sided stem area index with burying by snow
+	 smi 			=> canopystate_inst%smi_patch			, & ! Output: [real(r8) (:)   ]  Stem mass index  (kg/m**2)
+	 lmi 			=> canopystate_inst%lmi_patch			, & ! Output: [real(r8) (:)   ]  Leaf mass index (kg/m**2)                            
+                        
          laisun                 => canopystate_inst%laisun_patch                , & ! Input:  [real(r8) (:)   ]  sunlit leaf area                                                      
          laisha                 => canopystate_inst%laisha_patch                , & ! Input:  [real(r8) (:)   ]  shaded leaf area                                                      
          displa                 => canopystate_inst%displa_patch                , & ! Input:  [real(r8) (:)   ]  displacement height (m)                                               
@@ -618,7 +537,7 @@ contains
          eflx_sh_snow           => energyflux_inst%eflx_sh_snow_patch           , & ! Output: [real(r8) (:)   ]  sensible heat flux from snow (W/m**2) [+ to atm]                      
          eflx_sh_h2osfc         => energyflux_inst%eflx_sh_h2osfc_patch         , & ! Output: [real(r8) (:)   ]  sensible heat flux from soil (W/m**2) [+ to atm]                      
          eflx_sh_soil           => energyflux_inst%eflx_sh_soil_patch           , & ! Output: [real(r8) (:)   ]  sensible heat flux from soil (W/m**2) [+ to atm]                      
-         eflx_sh_stem           => energyflux_inst%eflx_sh_stem_patch            , & ! Output: [real(r8) (:)   ]  sensible heat flux from stems (W/m**2) [+ to atm]                    
+         eflx_sh_stem           => energyflux_inst%eflx_sh_stem_patch           , & ! Output: [real(r8) (:)   ]  sensible heat flux from stems (W/m**2) [+ to atm]                    
          eflx_sh_veg            => energyflux_inst%eflx_sh_veg_patch            , & ! Output: [real(r8) (:)   ]  sensible heat flux from leaves (W/m**2) [+ to atm]                    
          eflx_sh_grnd           => energyflux_inst%eflx_sh_grnd_patch           , & ! Output: [real(r8) (:)   ]  sensible heat flux from ground (W/m**2) [+ to atm]                    
          rah1                   => frictionvel_inst%rah1_patch                  , & ! Output: [real(r8) (:)   ]  aerodynamical  resistance [s/m]
@@ -696,6 +615,8 @@ contains
       !    frac_veg_nosno_patch > 0
       ! -----------------------------------------------------------------
 
+      write(iulog,*) 'I am in CanopyFluxes' 
+
       if (use_fates) then
          call clm_fates%prep_canopyfluxes(nc, fn, filterp, photosyns_inst)
       end if
@@ -721,25 +642,36 @@ contains
       do f = 1, fn
          p = filterp(f)
 
-         ! fraction of stem receiving incoming radiation
-         fstem(p) = (esai(p))/(elai(p)+esai(p))
-         ! when elai = 0, do not multiply by k_vert (i.e. fstem = 1)
-         if(elai(p) > 0._r8) fstem(p) = k_vert * fstem(p)
+         if (use_cn .AND. use_biomass_heat_storage) then
+            bh_d(p) = 2._r8 * sqrt(smi(p) / ( shr_const_pi * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * (wood_density(patch%itype(p)) + fbw(patch%itype(p)) / (1._r8 - fbw(patch%itype(p))) * 1000._r8)))
+         else 
+            bh_d(p) = dbh(patch%itype(p))
+         endif
 
          ! leaf and stem surface area
          sa_leaf(p) = elai(p)
 ! double in spirit of full surface area for sensible heat
          sa_leaf(p) = 2.*sa_leaf(p)
 
-         sa_stem(p) = params_inst%nstem(patch%itype(p))*(htop(p)*shr_const_pi*params_inst%dbh(patch%itype(p)))
+         sa_stem(p) = nstem(patch%itype(p))*(htop(p)*shr_const_pi*bh_d(p))
+             write(iulog,*)'nstem =', nstem(patch%itype(p))
+         
 ! adjust for departure of cylindrical stem model
          sa_stem(p) = k_cyl_area * sa_stem(p)
 
          ! do not calculate separate leaf/stem heat capacity for grasses
-         if(patch%itype(p) > 11) then
+         if(patch%itype(p) > 11 .OR. bh_d(p) < 0.02) then
             fstem(p) = 0.0
             sa_stem(p) = 0.0
          endif
+
+	 ! fraction of stem receiving incoming radiation
+	 if(sa_stem(p) .eq. 0._r8 .AND. elai(p) .eq. 0._r8) then
+		fstem(p) = 0._r8
+	 else
+	 	fstem(p) = (sa_stem(p) * k_vert) / (elai(p) + sa_stem(p))
+	 endif
+
 
          if(.not.use_biomass_heat_storage) then
             fstem(p) = 0._r8
@@ -758,19 +690,24 @@ contains
 ! lma_dry has units of kg dry mass /m2 here (table 2 of bonan 2017) 
 ! cdry_biomass = 1400 J/kg/K, cwater = 4188 J/kg/K
 ! boreal needleleaf lma*c2b ~ 0.25 kg dry mass/m2(leaf)
-         cp_veg(p)  = (0.25_r8 * max(0.01_r8,elai(p))) * (1400._r8 + (params_inst%fbw(patch%itype(p))/(1.-params_inst%fbw(patch%itype(p))))*4188._r8)
+         if(.not.use_cn) lmi(p) = 0.25_r8 * max(0.01_r8, elai(p))
+	                 
+         cp_veg(p)  = lmi(p) * (1400._r8 + (fbw(patch%itype(p))/(1.-fbw(patch%itype(p))))*4188._r8)
 
+          
 ! use non-zero, but small, heat capacity
          if(.not.use_biomass_heat_storage) then
             cp_veg(p)  = 1.e-3_r8
          endif
 
-         carea_stem   = shr_const_pi * (params_inst%dbh(patch%itype(p))*0.5)**2
+         carea_stem   = shr_const_pi * (bh_d(p)*0.5_r8)**2._r8
+         if(.not.use_cn) smi(p) = carea_stem * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * (wood_density(patch%itype(p)) + fbw(patch%itype(p))  * 1000._r8)
+
 
 ! cp-stem will have units J/k/ground_area (here assuming 1 stem/m2)
-         cp_stem(p) = (1400._r8 + (params_inst%fbw(patch%itype(p))/(1.-params_inst%fbw(patch%itype(p))))*4188._r8)
+         cp_stem(p) = (1400._r8 + (fbw(patch%itype(p))/(1.-fbw(patch%itype(p))))*4188._r8)
 ! use weight of dry wood
-         cp_stem(p) = params_inst%nstem(patch%itype(p))* cp_stem(p) * params_inst%wood_density(patch%itype(p)) * htop(p) * carea_stem
+         cp_stem(p) = nstem(patch%itype(p))* cp_stem(p) * wood_density(patch%itype(p)) * htop(p) * carea_stem
 ! adjust for departure from cylindrical stem model
          cp_stem(p) = k_cyl_vol * cp_stem(p)
       enddo
@@ -1107,7 +1044,7 @@ contains
             wtg(p) = 1._r8/rah(p,2)             ! ground
             !            wtstem = sa_stem(p)/rb(p)    ! stem
             ! add resistance between internal stem temperature and canopy air 
-            rstema = params_inst%rstem(patch%itype(p))*params_inst%dbh(patch%itype(p))
+            rstema = rstem(patch%itype(p))*bh_d(p)
             wtstem = sa_stem(p)/(rstema + rb(p))    ! stem
 
             wtshi  = 1._r8/(wta+wtl+wtstem+wtg(p))
@@ -1396,10 +1333,15 @@ contains
          !  Update stem temperature; adjust outgoing longwave
          !  does not account for changes in SH or internal LW,  
          !  as that would change result for t_veg above
-         dt_stem(p) = (fstem(p)*(sabv(p) + air(p) + bir(p)*tsbef(p)**4 &
-              + cir(p)*lw_grnd) - eflx_sh_stem(p) &
-              + lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
-              - fstem(p)*bir(p)*4.*tsbef(p)**3)
+	if((cp_stem(p)/dtime - fstem(p)*bir(p)*4.*tsbef(p)**3) .eq. 0._r8) then
+		dt_stem(p) = 0._r8
+	else
+         	dt_stem(p) = (fstem(p)*(sabv(p) + air(p) + bir(p)*tsbef(p)**4 &
+              		+ cir(p)*lw_grnd) - eflx_sh_stem(p) &
+              		+ lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
+              		- fstem(p)*bir(p)*4.*tsbef(p)**3)
+ 	endif
+
          
          hs_canopy(p) = dt_stem(p)*cp_stem(p)/dtime &
               +(t_veg(p)-tlbef(p))*cp_veg(p)/dtime

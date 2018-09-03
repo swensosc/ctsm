@@ -145,12 +145,6 @@ module pftconMod
      real(r8), allocatable :: root_radius   (:)   ! root radius (m)
      real(r8), allocatable :: root_density  (:)   ! root density (gC/m3)
 
-     real(r8), allocatable :: dbh  (:)            ! diameter at breast height (m)
-     real(r8), allocatable :: fbw  (:)            ! fraction of biomass that is water
-     real(r8), allocatable :: nstem  (:)          ! stem density (#/m2)
-     real(r8), allocatable :: rstem  (:)          ! stem resistance (s/m)
-     real(r8), allocatable :: wood_density  (:)   ! wood density (kg/m3)
-
      !  crop
 
      ! These arrays give information about the merge of unused crop types to the types CLM
@@ -265,6 +259,15 @@ module pftconMod
 
      ! pft parameters for dynamic root code
      real(r8), allocatable :: root_dmx(:)     !maximum root depth
+
+     ! pft parameters for biomass heat storage
+     real(r8), allocatable :: dbh           (:)   ! breast hight diameter (m)
+     real(r8), allocatable :: fbw           (:)   ! fraction of fresh biomass that is water
+     real(r8), allocatable :: nstem         (:)   ! tree number density (#ind/m2)
+     real(r8), allocatable :: rstem         (:)   ! stem resistance to heat transfer (s/m)
+     real(r8), allocatable :: wood_density  (:)   ! dry wood density (kg/m3)
+
+
 
    contains
 
@@ -485,7 +488,7 @@ contains
     use fileutils   , only : getfil
     use ncdio_pio   , only : ncd_io, ncd_pio_closefile, ncd_pio_openfile, file_desc_t
     use ncdio_pio   , only : ncd_inqdid, ncd_inqdlen
-    use clm_varctl  , only : paramfile, use_fates, use_flexibleCN, use_dynroot
+    use clm_varctl  , only : paramfile, use_fates, use_flexibleCN, use_dynroot, use_biomass_heat_storage
     use spmdMod     , only : masterproc
     use CLMFatesParamInterfaceMod, only : FatesReadPFTs
     !
@@ -1013,6 +1016,32 @@ contains
        call ncd_io('root_dmx', this%root_dmx, 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
     end if
+
+    !
+    ! Biomass heat storage variables
+    !
+    if (use_biomass_heat_storage ) then
+       write(iulog,*) 'Reading biomass heat storage parameters'
+       call ncd_io('dbh',this%dbh, 'read', ncid, readvar=readv)
+       if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
+       write(iulog,*) 'dbh =', this%dbh
+       call ncd_io('fbw',this%fbw, 'read', ncid, readvar=readv)
+       if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
+       call ncd_io('nstem',this%nstem, 'read', ncid, readvar=readv)
+       if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
+       write(iulog,*) 'nstem =', this%nstem
+       call ncd_io('rstem',this%rstem, 'read', ncid, readvar=readv)
+       if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
+       call ncd_io('wood_density',this%wood_density, 'read', ncid, readvar=readv)
+       if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
+    else
+       this%dbh = 0.0
+       this%fbw = 0.0
+       this%nstem = 0.0
+       this%rstem = 0.0
+       this%wood_density = 0.0
+    end if
+
    
     call ncd_pio_closefile(ncid)
 

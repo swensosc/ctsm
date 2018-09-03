@@ -102,7 +102,6 @@ module clm_instMod
   type(lakestate_type)                    :: lakestate_inst
   class(ozone_base_type), allocatable     :: ozone_inst
   type(photosyns_type)                    :: photosyns_inst
-  type(canopyflux_type)                   :: canopyflux_inst
   type(soilstate_type)                    :: soilstate_inst
   type(soilhydrology_type)                :: soilhydrology_inst
   type(saturated_excess_runoff_type)      :: saturated_excess_runoff_inst

@@ -42,7 +42,7 @@ contains
     use pftconMod        , only : ntrp_corn, nirrig_trp_corn
     use pftconMod        , only : nsugarcane, nirrig_sugarcane
     use pftconMod        , only : pftcon
-    use clm_varctl       , only : spinup_state
+    use clm_varctl       , only : spinup_state, use_biomass_heat_storage
     use clm_time_manager , only : get_rad_step_size
     !
     ! !ARGUMENTS:
@@ -87,7 +87,7 @@ contains
     !-------------------------------------------------------------------------------
     
     associate(                                                            & 
-         ivt                =>  patch%itype                               , & ! Input:  [integer  (:) ] patch vegetation type                                
+         ivt                =>  patch%itype                             , & ! Input:  [integer  (:) ] patch vegetation type                                
 
          woody              =>  pftcon%woody                            , & ! Input:  binary flag for woody lifeform (1=woody, 0=not woody)
          slatop             =>  pftcon%slatop                           , & ! Input:  specific leaf area at top of canopy, projected area basis [m^2/gC]
@@ -97,7 +97,10 @@ contains
          dwood              =>  pftcon%dwood                            , & ! Input:  density of wood (gC/m^3)                          
          ztopmx             =>  pftcon%ztopmx                           , & ! Input:
          laimx              =>  pftcon%laimx                            , & ! Input:
-         
+         nstem              =>  pftcon%nstem                            , & ! Input:  Tree number density (#ind/m2)
+         wood_density       =>  pftcon%wood_density                     , & ! Input:  Dry wood density (kg/m3)
+         fbw                =>  pftcon%fbw                              , & ! Input:  Fraction of fresh biomass that is water        
+       
          allom2             =>  dgv_ecophyscon%allom2                   , & ! Input:  [real(r8) (:) ] ecophys const                                     
          allom3             =>  dgv_ecophyscon%allom3                   , & ! Input:  [real(r8) (:) ] ecophys const                                     
 
@@ -109,7 +112,8 @@ contains
          forc_hgt_u_patch   =>  frictionvel_inst%forc_hgt_u_patch       , & ! Input:  [real(r8) (:) ] observational height of wind at patch-level [m]     
 
          leafc              =>  cnveg_carbonstate_inst%leafc_patch      , & ! Input:  [real(r8) (:) ] (gC/m2) leaf C                                    
-         deadstemc          =>  cnveg_carbonstate_inst%deadstemc_patch  , & ! Input:  [real(r8) (:) ] (gC/m2) dead stem C                               
+         deadstemc          =>  cnveg_carbonstate_inst%deadstemc_patch  , & ! Input:  [real(r8) (:) ] (gC/m2) dead stem C
+         livestemc          =>  cnveg_carbonstate_inst%livestemc_patch  , & ! Input:  [real(r8) (:) ] (gC/m2) live stem C                                                              
 
          farea_burned       =>  cnveg_state_inst%farea_burned_col       , & ! Input:  [real(r8) (:) ] F. Li and S. Levis                                 
          htmx               =>  cnveg_state_inst%htmx_patch             , & ! Output: [real(r8) (:) ] max hgt attained by a crop during yr (m)          
@@ -123,18 +127,16 @@ contains
          htop               =>  canopystate_inst%htop_patch             , & ! Output: [real(r8) (:) ] canopy top (m)                                     
          hbot               =>  canopystate_inst%hbot_patch             , & ! Output: [real(r8) (:) ] canopy bottom (m)                                  
          elai               =>  canopystate_inst%elai_patch             , & ! Output: [real(r8) (:) ] one-sided leaf area index with burying by snow    
-         esai               =>  canopystate_inst%esai_patch             , & ! Output: [real(r8) (:) ] one-sided stem area index with burying by snow    
+         esai               =>  canopystate_inst%esai_patch             , & ! Output: [real(r8) (:) ] one-sided stem area index with burying by snow  
+         smi                => canopystate_inst%smi_patch               , & ! Output: [real(r8) (:) ]  Stem mass index  (kg/m**2)
+         lmi                => canopystate_inst%lmi_patch               , & ! Output: [real(r8) (:) ]  Leaf mass index (kg/m**2)   
          frac_veg_nosno_alb =>  canopystate_inst%frac_veg_nosno_alb_patch & ! Output: [integer  (:) ] frac of vegetation not covered by snow [-]         
          )
-
+      write(iulog,*) 'I am in CNVegStruct'
       dt = real( get_rad_step_size(), r8 )
 
       ! constant allometric parameters
       taper = 200._r8
-      stocking = 1000._r8
-
-      ! convert from stems/ha -> stems/m^2
-      stocking = stocking / 10000._r8
 
       ! patch loop
       do fp = 1,num_soilp
@@ -146,6 +148,11 @@ contains
 
             tlai_old = tlai(p) ! n-1 value
             tsai_old = tsai(p) ! n-1 value
+
+            if (use_biomass_heat_storage) then
+                lmi(p) = max(0.0025_r8,leafc(p) * 0.002_r8 / (1._r8 - fbw(ivt(p)))) 
+            end if
+
 
             ! update the leaf area index based on leafC and SLA
             ! Eq 3 from Thornton and Zimmerman, 2007, J Clim, 20, 3902-3923. 
@@ -205,13 +212,19 @@ contains
                   !correct height calculation if doing accelerated spinup
                   if (spinup_state == 2) then
                     htop(p) = ((3._r8 * deadstemc(p) * 10._r8 * taper * taper)/ &
-                         (SHR_CONST_PI * stocking * dwood(ivt(p))))**(1._r8/3._r8)
+                         (SHR_CONST_PI * nstem(ivt(p)) * dwood(ivt(p))))**(1._r8/3._r8)
                   else
                     htop(p) = ((3._r8 * deadstemc(p) * taper * taper)/ &
-                         (SHR_CONST_PI * stocking * dwood(ivt(p))))**(1._r8/3._r8)
+                         (SHR_CONST_PI * nstem(ivt(p)) * dwood(ivt(p))))**(1._r8/3._r8)
                   end if
 
                endif
+
+               ! calculate vegetation physiliogical parameters used in biomass heat storage
+               if (use_biomass_heat_storage) then
+                  smi(p) = 0.002_r8 * (deadstemc(p) + livestemc(p)) * (wood_density(ivt(p)) + fbw(ivt(p))  * 1000._r8) / wood_density(ivt(p))
+               end if
+
 
                ! Peter Thornton, 5/3/2004
                ! Adding test to keep htop from getting too close to forcing height for windspeed
