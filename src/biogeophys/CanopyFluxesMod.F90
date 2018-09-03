@@ -654,7 +654,6 @@ contains
          sa_leaf(p) = 2.*sa_leaf(p)
 
          sa_stem(p) = nstem(patch%itype(p))*(htop(p)*shr_const_pi*bh_d(p))
-             write(iulog,*)'nstem =', nstem(patch%itype(p))
          
 ! adjust for departure of cylindrical stem model
          sa_stem(p) = k_cyl_area * sa_stem(p)
