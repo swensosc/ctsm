@@ -1333,14 +1333,12 @@ contains
          !  as that would change result for t_veg above
 	if((cp_stem(p)/dtime - fstem(p)*bir(p)*4.*tsbef(p)**3) .eq. 0._r8) then
 		dt_stem(p) = 0._r8
-		!write(iulog,*) 'cp_stem =', cp_stem(p), 'fstem =', fstem(p)
 	else
          	dt_stem(p) = (fstem(p)*(sabv(p) + air(p) + bir(p)*tsbef(p)**4 &
               		+ cir(p)*lw_grnd) - eflx_sh_stem(p) &
               		+ lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
               		- fstem(p)*bir(p)*4.*tsbef(p)**3)
-                !write(iulog,*) fstem(p), eflx_sh_stem(p), cp_stem(p), dt_stem(p)
- 	endif
+  	endif
 
          
          hs_canopy(p) = dt_stem(p)*cp_stem(p)/dtime &

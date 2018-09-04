@@ -132,7 +132,7 @@ contains
          lmi                => canopystate_inst%lmi_patch               , & ! Output: [real(r8) (:) ]  Leaf mass index (kg/m**2)   
          frac_veg_nosno_alb =>  canopystate_inst%frac_veg_nosno_alb_patch & ! Output: [integer  (:) ] frac of vegetation not covered by snow [-]         
          )
-      write(iulog,*) 'I am in CNVegStruct'
+
       dt = real( get_rad_step_size(), r8 )
 
       ! constant allometric parameters
