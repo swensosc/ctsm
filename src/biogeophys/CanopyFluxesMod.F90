@@ -14,7 +14,7 @@ module CanopyFluxesMod
   use shr_log_mod           , only : errMsg => shr_log_errMsg
   use abortutils            , only : endrun
   use clm_varctl            , only : iulog, use_cn, use_lch4, use_c13, use_c14, use_cndv, use_fates, &
-                                     use_luna, use_hydrstress
+                                     use_luna, use_hydrstress, use_biomass_heat_storage
   use clm_varpar            , only : nlevgrnd, nlevsno, mxpft
   use clm_varcon            , only : namep 
   use pftconMod             , only : pftcon
@@ -69,8 +69,7 @@ module CanopyFluxesMod
   logical, private :: snowveg_on     = .false.                ! snowveg_flag = 'ON'
   logical, private :: snowveg_onrad  = .true.                 ! snowveg_flag = 'ON_RAD'
   logical, private :: use_undercanopy_stability = .true.      ! use undercanopy stability term or not
-  logical, private :: use_biomass_heat_storage  = .false.     ! include biomass heat storage
-  character(len=*), parameter, private :: sourcefile = &
+   character(len=*), parameter, private :: sourcefile = &
        __FILE__
   !------------------------------------------------------------------------------
 
@@ -614,8 +613,7 @@ contains
       !    the list used here "exposedvegp(fe)" is incremented if 
       !    frac_veg_nosno_patch > 0
       ! -----------------------------------------------------------------
-
-      write(iulog,*) 'I am in CanopyFluxes' 
+ 
 
       if (use_fates) then
          call clm_fates%prep_canopyfluxes(nc, fn, filterp, photosyns_inst)
@@ -659,20 +657,23 @@ contains
          sa_stem(p) = k_cyl_area * sa_stem(p)
 
          ! do not calculate separate leaf/stem heat capacity for grasses
-         if(patch%itype(p) > 11 .OR. bh_d(p) < 0.02) then
+         if(patch%itype(p) > 11 .OR. bh_d(p) < 0.01) then
             fstem(p) = 0.0
             sa_stem(p) = 0.0
+            write(iulog,*) 'set fstem 0 because of low bh_d', bh_d(p), patch%itype(p)
          endif
 
 	 ! fraction of stem receiving incoming radiation
 	 if(sa_stem(p) .eq. 0._r8 .AND. elai(p) .eq. 0._r8) then
 		fstem(p) = 0._r8
+
 	 else
 	 	fstem(p) = (sa_stem(p) * k_vert) / (elai(p) + sa_stem(p))
 	 endif
 
 
-         if(.not.use_biomass_heat_storage) then
+         if(.not. use_biomass_heat_storage) then
+            write(iulog,*)'I am here for some reason', patch%itype(p)
             fstem(p) = 0._r8
             sa_stem(p) = 0._r8
             sa_leaf(p) = (elai(p)+esai(p))
@@ -689,18 +690,18 @@ contains
 ! lma_dry has units of kg dry mass /m2 here (table 2 of bonan 2017) 
 ! cdry_biomass = 1400 J/kg/K, cwater = 4188 J/kg/K
 ! boreal needleleaf lma*c2b ~ 0.25 kg dry mass/m2(leaf)
-         if(.not.use_cn) lmi(p) = 0.25_r8 * max(0.01_r8, elai(p))
+         if(.not. use_cn) lmi(p) = 0.25_r8 * max(0.01_r8, elai(p))
 	                 
          cp_veg(p)  = lmi(p) * (1400._r8 + (fbw(patch%itype(p))/(1.-fbw(patch%itype(p))))*4188._r8)
 
           
 ! use non-zero, but small, heat capacity
-         if(.not.use_biomass_heat_storage) then
+         if(.not. use_biomass_heat_storage) then
             cp_veg(p)  = 1.e-3_r8
          endif
 
          carea_stem   = shr_const_pi * (bh_d(p)*0.5_r8)**2._r8
-         if(.not.use_cn) smi(p) = carea_stem * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * (wood_density(patch%itype(p)) + fbw(patch%itype(p))  * 1000._r8)
+         if(.not. use_cn) smi(p) = carea_stem * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * (wood_density(patch%itype(p)) + fbw(patch%itype(p))  * 1000._r8)
 
 
 ! cp-stem will have units J/k/ground_area (here assuming 1 stem/m2)
@@ -1334,11 +1335,13 @@ contains
          !  as that would change result for t_veg above
 	if((cp_stem(p)/dtime - fstem(p)*bir(p)*4.*tsbef(p)**3) .eq. 0._r8) then
 		dt_stem(p) = 0._r8
+		!write(iulog,*) 'cp_stem =', cp_stem(p), 'fstem =', fstem(p)
 	else
          	dt_stem(p) = (fstem(p)*(sabv(p) + air(p) + bir(p)*tsbef(p)**4 &
               		+ cir(p)*lw_grnd) - eflx_sh_stem(p) &
               		+ lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
               		- fstem(p)*bir(p)*4.*tsbef(p)**3)
+                !write(iulog,*) fstem(p), eflx_sh_stem(p), cp_stem(p), dt_stem(p)
  	endif
 
          
