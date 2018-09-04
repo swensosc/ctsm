@@ -659,8 +659,7 @@ contains
          ! do not calculate separate leaf/stem heat capacity for grasses
          if(patch%itype(p) > 11 .OR. bh_d(p) < 0.01) then
             fstem(p) = 0.0
-            sa_stem(p) = 0.0
-            write(iulog,*) 'set fstem 0 because of low bh_d', bh_d(p), patch%itype(p)
+            sa_stem(p) = 0.0         
          endif
 
 	 ! fraction of stem receiving incoming radiation
@@ -673,7 +672,6 @@ contains
 
 
          if(.not. use_biomass_heat_storage) then
-            write(iulog,*)'I am here for some reason', patch%itype(p)
             fstem(p) = 0._r8
             sa_stem(p) = 0._r8
             sa_leaf(p) = (elai(p)+esai(p))
