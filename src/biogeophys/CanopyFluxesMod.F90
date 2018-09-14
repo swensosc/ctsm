@@ -656,8 +656,8 @@ contains
 ! adjust for departure of cylindrical stem model
          sa_stem(p) = k_cyl_area * sa_stem(p)
 
-         ! do not calculate separate leaf/stem heat capacity for grasses
-         if(patch%itype(p) > 11 .OR. bh_d(p) < 0.01) then
+         ! do not calculate separate leaf/stem heat capacity for grasses and too thin trees/shrubs
+         if(patch%itype(p) > 11 .OR. bh_d(p) < 0.03) then
             fstem(p) = 0.0
             sa_stem(p) = 0.0         
          endif
@@ -1280,6 +1280,7 @@ contains
 
          end do   ! end of filtered patch loop
 
+
          ! Test for convergence
 
          itlef = itlef+1
@@ -1339,6 +1340,12 @@ contains
               		+ lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
               		- fstem(p)*bir(p)*4.*tsbef(p)**3)
   	endif
+ 
+        ! Put upper limit of 1K to stem temperature change per time step 
+        !if(abs(dt_stem(p)) > 1._r8) then
+        !     eflx_sh_stem(p) = eflx_sh_stem(p) - (dt_stem(p) - 1._r8 * dt_stem(p) / abs(dt_stem(p))) * cp_stem(p) / dtime
+        !     dt_stem(p) = 1._r8 * dt_stem(p) / abs(dt_stem(p))
+        !endif
 
          
          hs_canopy(p) = dt_stem(p)*cp_stem(p)/dtime &

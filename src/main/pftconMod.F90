@@ -1021,15 +1021,12 @@ contains
     ! Biomass heat storage variables
     !
     if (use_biomass_heat_storage ) then
-       write(iulog,*) 'Reading biomass heat storage parameters'
        call ncd_io('dbh',this%dbh, 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
-       write(iulog,*) 'dbh =', this%dbh
        call ncd_io('fbw',this%fbw, 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
        call ncd_io('nstem',this%nstem, 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
-       write(iulog,*) 'nstem =', this%nstem
        call ncd_io('rstem',this%rstem, 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
        call ncd_io('wood_density',this%wood_density, 'read', ncid, readvar=readv)
@@ -1037,7 +1034,7 @@ contains
     else
        this%dbh = 0.0
        this%fbw = 0.0
-       this%nstem = 0.0
+       this%nstem = 0.1
        this%rstem = 0.0
        this%wood_density = 0.0
     end if
