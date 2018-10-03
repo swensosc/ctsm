@@ -614,7 +614,6 @@ contains
       !    frac_veg_nosno_patch > 0
       ! -----------------------------------------------------------------
  
-
       if (use_fates) then
          call clm_fates%prep_canopyfluxes(nc, fn, filterp, photosyns_inst)
       end if
@@ -647,7 +646,7 @@ contains
          endif
 
          ! leaf and stem surface area
-         sa_leaf(p) = elai(p)
+         sa_leaf(p) = (elai(p) + esai(p))
 ! double in spirit of full surface area for sensible heat
          sa_leaf(p) = 2.*sa_leaf(p)
 
@@ -656,19 +655,22 @@ contains
 ! adjust for departure of cylindrical stem model
          sa_stem(p) = k_cyl_area * sa_stem(p)
 
+	 ! fraction of stem receiving incoming radiation
+	 if(sa_stem(p) .eq. 0._r8 .AND. sa_leaf(p) .eq. 0._r8) then
+		fstem(p) = 0._r8
+         elseif(sa_leaf(p) .eq. 0._r8) then
+                fstem(p) = 1._r8
+	 else
+	 	fstem(p) = (sa_stem(p) * k_vert) / (sa_leaf(p) + sa_stem(p))
+	 endif
+
          ! do not calculate separate leaf/stem heat capacity for grasses and too thin trees/shrubs
          if(patch%itype(p) > 11 .OR. bh_d(p) < 0.03) then
             fstem(p) = 0.0
             sa_stem(p) = 0.0         
          endif
 
-	 ! fraction of stem receiving incoming radiation
-	 if(sa_stem(p) .eq. 0._r8 .AND. elai(p) .eq. 0._r8) then
-		fstem(p) = 0._r8
 
-	 else
-	 	fstem(p) = (sa_stem(p) * k_vert) / (elai(p) + sa_stem(p))
-	 endif
 
 
          if(.not. use_biomass_heat_storage) then
@@ -688,7 +690,7 @@ contains
 ! lma_dry has units of kg dry mass /m2 here (table 2 of bonan 2017) 
 ! cdry_biomass = 1400 J/kg/K, cwater = 4188 J/kg/K
 ! boreal needleleaf lma*c2b ~ 0.25 kg dry mass/m2(leaf)
-         if(.not. use_cn) lmi(p) = 0.25_r8 * max(0.01_r8, elai(p))
+         if(.not. use_cn) lmi(p) = 0.25_r8 * max(0.01_r8, sa_leaf(p))
 	                 
          cp_veg(p)  = lmi(p) * (1400._r8 + (fbw(patch%itype(p))/(1.-fbw(patch%itype(p))))*4188._r8)
 
@@ -1038,7 +1040,7 @@ contains
             ! Moved the original subroutine in-line...
 
             wta    = 1._r8/rah(p,1)             ! air
-            wtl    = sa_leaf(p)/rb(p)    ! leaf
+            wtl    = (elai(p)+esai(p))/rb(p)    ! leaf
             wtg(p) = 1._r8/rah(p,2)             ! ground
             !            wtstem = sa_stem(p)/rb(p)    ! stem
             ! add resistance between internal stem temperature and canopy air 
@@ -1074,7 +1076,7 @@ contains
             end if
 
 ! should be the same expression used in Photosynthesis/getqflx
-            efpot = forc_rho(c)*elai(p)/rb(p)*(qsatl(p)-qaf(p))
+            efpot = forc_rho(c)*(elai(p) + esai(p))/rb(p)*(qsatl(p)-qaf(p))
 
             ! When the hydraulic stress parameterization is active calculate rpp
             ! but not transpiration
@@ -1115,7 +1117,7 @@ contains
             ! Moved the original subroutine in-line...
 
             wtaq    = frac_veg_nosno(p)/raw(p,1)                        ! air
-            wtlq    = frac_veg_nosno(p)*elai(p)/rb(p) * rpp   ! leaf
+            wtlq    = frac_veg_nosno(p)*(elai(p)+esai(p))/rb(p) * rpp   ! leaf
 
             !Litter layer resistance. Added by K.Sakaguchi
             snow_depth_c = z_dl ! critical depth for 100% litter burial by snow (=litter thickness)
@@ -1194,7 +1196,7 @@ contains
             ! result in an imbalance in "hvap*qflx_evap_veg" and
             ! "efe + dc2*wtgaq*qsatdt_veg"
 
-            efpot = forc_rho(c)*elai(p)/rb(p) &
+            efpot = forc_rho(c)*(esai(p)+elai(p))/rb(p) &
                  *(wtgaq*(qsatl(p)+qsatldT(p)*dt_veg(p)) &
                  -wtgq0*qg(c)-wtaq0(p)*forc_q(c))
             qflx_evap_veg(p) = rpp*efpot
@@ -1339,19 +1341,22 @@ contains
               		+ cir(p)*lw_grnd) - eflx_sh_stem(p) &
               		+ lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
               		- fstem(p)*bir(p)*4.*tsbef(p)**3)
-  	endif
- 
+  	endif 
+
         ! Put upper limit of 1K to stem temperature change per time step 
-        !if(abs(dt_stem(p)) > 1._r8) then
-        !     eflx_sh_stem(p) = eflx_sh_stem(p) - (dt_stem(p) - 1._r8 * dt_stem(p) / abs(dt_stem(p))) * cp_stem(p) / dtime
-        !     dt_stem(p) = 1._r8 * dt_stem(p) / abs(dt_stem(p))
-        !endif
+        if(abs(dt_stem(p)) > 2._r8) then
+             eflx_sh_stem(p) = eflx_sh_stem(p) + (dt_stem(p) - 2._r8 * dt_stem(p) / abs(dt_stem(p))) * cp_stem(p) / dtime - (dt_stem(p) - 2._r8 * dt_stem(p) / abs(dt_stem(p))) * fstem(p) * bir(p)*tsbef(p)**3 * 4._r8
+             dt_stem(p) = 2._r8 * dt_stem(p) / abs(dt_stem(p))
+        endif
 
          
          hs_canopy(p) = dt_stem(p)*cp_stem(p)/dtime &
               +(t_veg(p)-tlbef(p))*cp_veg(p)/dtime
+
+
          
          t_stem(p) =  t_stem(p) + dt_stem(p)
+ 
 
          delt    = wtal(p)*t_grnd(c)-wtl0(p)*t_veg(p)-wta0(p)*thm(p)-wtstem0(p)*t_stem(p)
 
@@ -1451,6 +1456,7 @@ contains
          cgrnds(p) = cgrnds(p) + cpair*forc_rho(c)*wtg(p)*wtal(p)
          cgrndl(p) = cgrndl(p) + forc_rho(c)*wtgq(p)*wtalq(p)*dqgdT(c)
          cgrnd(p)  = cgrnds(p) + cgrndl(p)*htvp(c)
+
 
          ! Update dew accumulation (kg/m2)
          h2ocan(p) = max(0._r8,h2ocan(p)+(qflx_tran_veg(p)-qflx_evap_veg(p))*dtime)
