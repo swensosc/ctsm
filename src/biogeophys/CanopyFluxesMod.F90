@@ -445,8 +445,8 @@ contains
          frac_veg_nosno         => canopystate_inst%frac_veg_nosno_patch        , & ! Input:  [integer  (:)   ]  fraction of vegetation not covered by snow (0 OR 1) [-]
          elai                   => canopystate_inst%elai_patch                  , & ! Input:  [real(r8) (:)   ]  one-sided leaf area index with burying by snow                        
          esai                   => canopystate_inst%esai_patch                  , & ! Input:  [real(r8) (:)   ]  one-sided stem area index with burying by snow
-	 smi 			=> canopystate_inst%smi_patch			, & ! Output: [real(r8) (:)   ]  Stem mass index  (kg/m**2)
-	 lmi 			=> canopystate_inst%lmi_patch			, & ! Output: [real(r8) (:)   ]  Leaf mass index (kg/m**2)                            
+         smi                    => canopystate_inst%smi_patch                   , & ! Output: [real(r8) (:)   ]  Stem mass index  (kg/m**2)
+         lmi                    => canopystate_inst%lmi_patch                   , & ! Output: [real(r8) (:)   ]  Leaf mass index (kg/m**2)                            
                         
          laisun                 => canopystate_inst%laisun_patch                , & ! Input:  [real(r8) (:)   ]  sunlit leaf area                                                      
          laisha                 => canopystate_inst%laisha_patch                , & ! Input:  [real(r8) (:)   ]  shaded leaf area                                                      
@@ -640,7 +640,8 @@ contains
          p = filterp(f)
 
          if (use_cn .AND. use_biomass_heat_storage) then
-            bh_d(p) = 2._r8 * sqrt(smi(p) / ( shr_const_pi * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * (wood_density(patch%itype(p)) + fbw(patch%itype(p)) / (1._r8 - fbw(patch%itype(p))) * 1000._r8)))
+            bh_d(p) = 2._r8 * sqrt(smi(p) / ( shr_const_pi * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * &
+            (wood_density(patch%itype(p)) + fbw(patch%itype(p)) / (1._r8 - fbw(patch%itype(p))) * 1000._r8)))
          else 
             bh_d(p) = dbh(patch%itype(p))
          endif
@@ -655,14 +656,14 @@ contains
 ! adjust for departure of cylindrical stem model
          sa_stem(p) = k_cyl_area * sa_stem(p)
 
-	 ! fraction of stem receiving incoming radiation
-	 if(sa_stem(p) .eq. 0._r8 .AND. sa_leaf(p) .eq. 0._r8) then
-		fstem(p) = 0._r8
+! fraction of stem receiving incoming radiation
+         if(sa_stem(p) .eq. 0._r8 .AND. sa_leaf(p) .eq. 0._r8) then
+            fstem(p) = 0._r8
          elseif(sa_leaf(p) .eq. 0._r8) then
-                fstem(p) = 1._r8
-	 else
-	 	fstem(p) = (sa_stem(p) * k_vert) / (sa_leaf(p) + sa_stem(p))
-	 endif
+            fstem(p) = 1._r8
+         else
+            fstem(p) = (sa_stem(p) * k_vert) / (sa_leaf(p) + sa_stem(p))
+         endif
 
          ! do not calculate separate leaf/stem heat capacity for grasses and too thin trees/shrubs
          if(patch%itype(p) > 11 .OR. bh_d(p) < 0.03) then
@@ -691,7 +692,7 @@ contains
 ! cdry_biomass = 1400 J/kg/K, cwater = 4188 J/kg/K
 ! boreal needleleaf lma*c2b ~ 0.25 kg dry mass/m2(leaf)
          if(.not. use_cn) lmi(p) = 0.25_r8 * max(0.01_r8, sa_leaf(p))
-	                 
+                 
          cp_veg(p)  = lmi(p) * (1400._r8 + (fbw(patch%itype(p))/(1.-fbw(patch%itype(p))))*4188._r8)
 
           
@@ -701,7 +702,8 @@ contains
          endif
 
          carea_stem   = shr_const_pi * (bh_d(p)*0.5_r8)**2._r8
-         if(.not. use_cn) smi(p) = carea_stem * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * (wood_density(patch%itype(p)) + fbw(patch%itype(p))  * 1000._r8)
+         if(.not. use_cn) smi(p) = carea_stem * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * &
+            (wood_density(patch%itype(p)) + fbw(patch%itype(p))  * 1000._r8)
 
 
 ! cp-stem will have units J/k/ground_area (here assuming 1 stem/m2)
@@ -1334,18 +1336,20 @@ contains
          !  Update stem temperature; adjust outgoing longwave
          !  does not account for changes in SH or internal LW,  
          !  as that would change result for t_veg above
-	if((cp_stem(p)/dtime - fstem(p)*bir(p)*4.*tsbef(p)**3) .eq. 0._r8) then
-		dt_stem(p) = 0._r8
-	else
-         	dt_stem(p) = (fstem(p)*(sabv(p) + air(p) + bir(p)*tsbef(p)**4 &
-              		+ cir(p)*lw_grnd) - eflx_sh_stem(p) &
-              		+ lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
-              		- fstem(p)*bir(p)*4.*tsbef(p)**3)
-  	endif 
+         if((cp_stem(p)/dtime - fstem(p)*bir(p)*4.*tsbef(p)**3) .eq. 0._r8) then
+            dt_stem(p) = 0._r8
+         else
+            dt_stem(p) = (fstem(p)*(sabv(p) + air(p) + bir(p)*tsbef(p)**4 &
+            + cir(p)*lw_grnd) - eflx_sh_stem(p) &
+            + lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
+            - fstem(p)*bir(p)*4.*tsbef(p)**3)
+         endif 
 
-        ! Put upper limit of 1K to stem temperature change per time step 
+        ! Put upper limit of 2K to stem temperature change per time step 
         if(abs(dt_stem(p)) > 2._r8) then
-             eflx_sh_stem(p) = eflx_sh_stem(p) + (dt_stem(p) - 2._r8 * dt_stem(p) / abs(dt_stem(p))) * cp_stem(p) / dtime - (dt_stem(p) - 2._r8 * dt_stem(p) / abs(dt_stem(p))) * fstem(p) * bir(p)*tsbef(p)**3 * 4._r8
+             eflx_sh_stem(p) = eflx_sh_stem(p) + (dt_stem(p) - 2._r8 * dt_stem(p) / &
+             abs(dt_stem(p))) * cp_stem(p) / dtime - (dt_stem(p) - 2._r8 * dt_stem(p) &
+             / abs(dt_stem(p))) * fstem(p) * bir(p)*tsbef(p)**3 * 4._r8
              dt_stem(p) = 2._r8 * dt_stem(p) / abs(dt_stem(p))
         endif
 

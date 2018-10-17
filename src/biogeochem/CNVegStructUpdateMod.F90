@@ -222,7 +222,8 @@ contains
 
                ! calculate vegetation physiliogical parameters used in biomass heat storage
                if (use_biomass_heat_storage) then
-                  smi(p) = 0.002_r8 * (deadstemc(p) + livestemc(p)) * (wood_density(ivt(p)) + fbw(ivt(p))  * 1000._r8) / wood_density(ivt(p))
+                  smi(p) = 0.002_r8 * (deadstemc(p) + livestemc(p)) * (wood_density(ivt(p)) + &
+                  fbw(ivt(p)) * 1000._r8) / wood_density(ivt(p))
                end if
 
 
