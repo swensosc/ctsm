@@ -640,8 +640,8 @@ contains
          p = filterp(f)
 
          if (use_cn .AND. use_biomass_heat_storage) then
-            bh_d(p) = 2._r8 * sqrt(smi(p) / ( shr_const_pi * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * &
-            (wood_density(patch%itype(p)) + fbw(patch%itype(p)) / (1._r8 - fbw(patch%itype(p))) * 1000._r8)))
+            bh_d(p) = 2._r8 * sqrt(smi(p) * (1._r8 - fbw(patch%itype(p))) / ( shr_const_pi * htop(p) * k_cyl_vol & 
+            * nstem(patch%itype(p)) *  wood_density(patch%itype(p))))
          else 
             bh_d(p) = dbh(patch%itype(p))
          endif
@@ -703,7 +703,7 @@ contains
 
          carea_stem   = shr_const_pi * (bh_d(p)*0.5_r8)**2._r8
          if(.not. use_cn) smi(p) = carea_stem * htop(p) * k_cyl_vol * nstem(patch%itype(p)) * &
-            (wood_density(patch%itype(p)) + fbw(patch%itype(p))  * 1000._r8)
+            wood_density(patch%itype(p)) / (1._r8 - fbw(patch%itype(p)))
 
 
 ! cp-stem will have units J/k/ground_area (here assuming 1 stem/m2)
