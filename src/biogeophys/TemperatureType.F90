@@ -25,6 +25,8 @@ module TemperatureType
      real(r8), pointer :: t_stem_patch             (:)   ! patch stem temperatu\re (Kelvin)
      real(r8), pointer :: t_veg_patch              (:)   ! patch vegetation temperature (Kelvin)
      real(r8), pointer :: t_skin_patch             (:)   ! patch skin temperature (Kelvin)
+     real(r8), pointer :: t_skin_patch_01_30       (:)   ! patch skin temperature at 01:30 (1.30 am) (Kelvin)
+     real(r8), pointer :: t_skin_patch_13_30       (:)   ! patch skin temperature at 13:30 (1.30 pm) (Kelvin)
      real(r8), pointer :: t_veg_day_patch          (:)   ! patch daytime  accumulative vegetation temperature (Kelvinx*nsteps), LUNA specific, from midnight to current step
      real(r8), pointer :: t_veg_night_patch        (:)   ! patch night-time accumulative vegetation temperature (Kelvin*nsteps), LUNA specific, from midnight to current step
      real(r8), pointer :: t_veg10_day_patch        (:)   ! 10 day running mean of patch daytime time vegetation temperature (Kelvin), LUNA specific, but can be reused
@@ -192,6 +194,8 @@ contains
     allocate(this%t_stem_patch             (begp:endp))                      ; this%t_stem_patch             (:)   = nan
     allocate(this%t_veg_patch              (begp:endp))                      ; this%t_veg_patch              (:)   = nan
     allocate(this%t_skin_patch             (begp:endp))                      ; this%t_skin_patch             (:)   = nan
+    allocate(this%t_skin_patch_01_30       (begp:endp))                      ; this%t_skin_patch_01_30       (:)   = spval
+    allocate(this%t_skin_patch_13_30       (begp:endp))                      ; this%t_skin_patch_13_30       (:)   = spval
     if(use_luna) then
      allocate(this%t_veg_day_patch         (begp:endp))                      ; this%t_veg_day_patch          (:)   = spval
      allocate(this%t_veg_night_patch       (begp:endp))                      ; this%t_veg_night_patch        (:)   = spval
@@ -399,6 +403,16 @@ contains
     call hist_addfld1d(fname='TSKIN', units='K',  &
          avgflag='A', long_name='skin temperature', &
          ptr_patch=this%t_skin_patch, c2l_scale_type='urbans')
+
+    this%t_skin_patch_01_30(begp:endp) = spval
+    call hist_addfld1d(fname='TSKIN_01_30', units='K',  &
+         avgflag='A', long_name='skin temperature at 01:30 (1:30 am)', &
+         ptr_patch=this%t_skin_patch_01_30, c2l_scale_type='urbans')
+
+    this%t_skin_patch_13_30(begp:endp) = spval
+    call hist_addfld1d(fname='TSKIN_13_30', units='K',  &
+         avgflag='A', long_name='skin temperature at 13:30 (1:30 pm)', &
+         ptr_patch=this%t_skin_patch_13_30, c2l_scale_type='urbans')
 
     this%t_grnd_col(begc:endc) = spval
     call hist_addfld1d (fname='TG',  units='K',  &
@@ -1298,6 +1312,7 @@ contains
     use shr_const_mod    , only : SHR_CONST_CDAY, SHR_CONST_TKFRZ
     use clm_time_manager , only : get_step_size, get_nstep, is_end_curr_day, get_curr_date
     use accumulMod       , only : update_accum_field, extract_accum_field, accumResetVal
+    use clm_varcon       , only : degpsec, isecspday
     !
     ! !ARGUMENTS:
     class(temperature_type)                :: this
@@ -1313,6 +1328,8 @@ contains
     integer :: month                     ! month (1, ..., 12) for nstep
     integer :: day                       ! day of month (1, ..., 31) for nstep
     integer :: secs                      ! seconds into current date for nstep
+    integer :: local_secpl               ! seconds into current date in local time
+
     logical :: end_cd                    ! temporary for is_end_curr_day() value
     integer :: begp, endp
     real(r8), pointer :: rbufslp(:)      ! temporary single level - pft level
@@ -1508,8 +1525,35 @@ contains
        call extract_accum_field ('GDD10', this%gdd10_patch, nstep)
 
     end if
+    
+
+    ! Accumulate skin temperature at 01:30 and 13:30
+
+    do p = begp,endp
+
+       if (patch%active(p)) then
+
+          g = patch%gridcell(p)
+          local_secpl = secs + nint((grc%londeg(g)/degpsec)/dtime)*dtime
+          local_secpl = mod(local_secpl,isecspday)
+
+          if (local_secpl == 5400) then
+             this%t_skin_patch_01_30(p) = this%t_skin_patch(p)
+          else 
+             this%t_skin_patch_01_30(p) = spval
+          end if
+
+          if (local_secpl == 48600) then
+             this%t_skin_patch_13_30(p) = this%t_skin_patch(p)
+          else
+             this%t_skin_patch_13_30(p) = spval
+          end if
+
+       end if
+    end do
 
     deallocate(rbufslp)
+
 
   end subroutine UpdateAccVars
 

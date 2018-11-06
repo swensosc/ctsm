@@ -666,7 +666,7 @@ contains
          endif
 
          ! do not calculate separate leaf/stem heat capacity for grasses and too thin trees/shrubs
-         if(patch%itype(p) > 11 .OR. bh_d(p) < 0.03) then
+         if(patch%itype(p) > 11 .OR. bh_d(p) < 0.01) then
             fstem(p) = 0.0
             sa_stem(p) = 0.0         
          endif
