@@ -187,6 +187,7 @@ module CLMFatesInterfaceMod
       procedure, public :: wrap_canopy_radiation
       procedure, public :: wrap_bgc_summary
       procedure, public :: TransferZ0mDisp
+      procedure, public :: BiomassHeatIndicesFromFates
       procedure, private :: init_history_io
       procedure, private :: wrap_update_hlmfates_dyn
       procedure, private :: init_soil_depths
@@ -1722,6 +1723,98 @@ contains
 
  end subroutine wrap_photosynthesis
 
+ ! ======================================================================================
+
+ subroutine BiomassHeatIndicesFromFates(this, &
+      filterp,                                   & ! in
+      k_internal,                                & ! in
+      canopystate_inst,                          & ! in
+      frac_rad_abs_by_stem,                      & ! in/out
+      sa_leaf,                                   & ! in/out
+      sa_stem,                                   & ! in/out
+      sa_internal,                               & ! in/out
+      cp_leaf,                                   & ! in/out
+      cp_stem,                                   & ! in/out
+      rstem )                                      ! in/out
+
+
+   use clm_varcon, only : c_dry_biomass             ! specific heat of dry biomass [J/kg/K]
+   use clm_varcon, only : c_water                   ! specific heat of water       [J/kg/K]
+   
+   class(hlm_fates_interface_type), intent(inout) :: this
+   integer,  intent(in)    :: filterp(:)                ! patch/pft filter
+   real(r8), intent(in)    :: k_internal                ! self-absorbtion parameter of leaf/stem longwave
+   type(canopystate_type), intent(in) :: canopystate_inst
+   real(r8), intent(inout) :: frac_rad_abs_by_stem(:)   ! fraction of incoming radiation absorbed by stems
+   real(r8), intent(inout) :: sa_leaf(:)                ! surface area of leaves [m2/m2_ground]
+   real(r8), intent(inout) :: sa_stem(:)                ! surface area of stems  [m2/m2_ground]
+   real(r8), intent(inout) :: sa_internal(:)            ! min(sa_stem,sa_leaf)
+   real(r8), intent(inout) :: cp_leaf(:)                ! heat capacity of leaves
+   real(r8), intent(inout) :: cp_stem(:)                ! heat capacity of stems
+   real(r8), intent(inout) :: rstem(:)
+   
+   integer :: fn  ! number of patches in filter
+   integer :: p   ! Patch/pft index (CLM global position, ie begp:endp)
+   integer :: icp ! filter loop counter
+   integer :: ifp ! fates patch index associated with p, on this site/column
+   integer :: c   ! column index (CLM global position, ie begc:endc)
+   
+   associate(elai => canopystate_inst%elai_patch , &
+             esai => canopystate_inst%esai_patch)
+     
+     write(iulog,*) 'biomass heat storage is only partially implemented'
+     write(iulog,*) 'this routine BiomassHeatingIndicesFromFates() should '
+     write(iulog,*) 'not be callable, and is only a placeholder'
+     write(iulog,*) 'at the moment'
+     call endrun(msg=errMsg(sourcefile, __LINE__))
+
+     fn = size(filterp)
+
+     do icp = 1,fn
+
+        p = filterp(icp)
+        c = patch%column(p)
+        ifp = p-col%patchi(c)
+
+        ! fraction of stem receiving incoming radiation
+        frac_rad_abs_by_stem(p) = (esai(p))/(elai(p)+esai(p))
+
+        ! leaf and stem surface area
+        ! double in spirit of full surface area for sensible heat
+        sa_leaf(p) = 2.*elai(p)
+
+        ! Surface area for stem
+!!        sa_stem(p) = this%fates(nc)%bc_out(s)%sa_stem(ifp)
+
+        ! calculate specify heat capacity of vegetation
+        ! as weighted averaged of dry biomass and water
+        ! lma_dry has units of kg dry mass/m2 here
+        ! (Appendix B of Bonan et al., GMD, 2018) 
+
+!!        cp_leaf(p)  = this%fates(nc)%bc_out(s)%patch_leaf_biomass(ifp) * &
+!!             (c_dry_biomass*(1. - this%fates(nc)%bc_out(s)%patch_leaf_fwb(ifp)) + &
+!!             c_water*this%fates(nc)%bc_out(s)%patch_leaf_fwb(ifp))
+
+        ! cp-stem will have units J/k/ground_area
+!!        cp_stem(p) = this%fates(nc)%bc_out(s)%patch_stem_biomass(ifp) * &
+!!             (c_dry_biomass*(1. - this%fates(nc)%bc_out(s)%patch_stem_fwb(ifp)) + & 
+!!             c_water*this%fates(nc)%bc_out(s)%patch_stem_fwb(ifp))
+
+        ! resistance between internal stem temperature and canopy air
+        ! we pass in an effective dbh from the patch. This is volume
+        ! weighted mean dbh of all cohorts in the patch
+!!        rstem(p) = rstem_per_dbh * this%fates(nc)%bc_out(s)%patch_eff_dbh(ifp)
+
+        ! internal longwave fluxes between leaf and stem
+        ! (use same area of interaction i.e. ignore leaf <-> leaf)
+        sa_internal(p) = k_internal * min(sa_leaf(p),sa_stem(p))
+
+     end do
+   end associate
+   return
+ end subroutine BiomassHeatIndicesFromFates
+
+ 
  ! ======================================================================================
 
  subroutine wrap_accumulatefluxes(this, nc, fn, filterp)

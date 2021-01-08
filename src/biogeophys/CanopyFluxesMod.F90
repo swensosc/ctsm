@@ -685,86 +685,107 @@ contains
       ! Calculate biomass heat capacities
       !
       if(use_biomass_heat_storage) then
-bioms:   do f = 1, fn
-            p = filterp(f)
 
-            ! fraction of stem receiving incoming radiation
-            frac_rad_abs_by_stem(p) = (esai(p))/(elai(p)+esai(p))
+         fates_if: if(use_fates) then
 
-            ! when elai = 0, do not multiply by k_vert (i.e. frac_rad_abs_by_stem = 1)
-            if(elai(p) > 0._r8) frac_rad_abs_by_stem(p) = k_vert * frac_rad_abs_by_stem(p)
+            call clm_fates%BiomassHeatIndicesFromFates(filterp(1:fn),  & ! in
+                 k_internal,                                    & ! in
+                 canopystate_inst,                              & ! in
+                 frac_rad_abs_by_stem(bounds%begp:bounds%endp), & ! in/out
+                 sa_leaf(bounds%begp:bounds%endp),              & ! in/out
+                 sa_stem(bounds%begp:bounds%endp),              & ! in/out
+                 sa_internal(bounds%begp:bounds%endp),          & ! in/out
+                 cp_leaf(bounds%begp:bounds%endp),              & ! in/out
+                 cp_stem(bounds%begp:bounds%endp),              & ! in/out
+                 rstem(bounds%begp:bounds%endp))                  ! in/out
+               
+         else
 
-            ! if using Satellite Phenology mode, use values in parameter file
-            ! otherwise calculate dbh from stem biomass
-            if(use_cn) then
-               if(stem_biomass(p) > 0._r8) then 
-                  dbh(p) = 2._r8 * sqrt(stem_biomass(p) * (1._r8 - fbw(patch%itype(p))) &
-                       / ( shr_const_pi * htop(p) * k_cyl_vol & 
-                       * nstem(patch%itype(p)) *  wood_density(patch%itype(p))))
+            bioms: do f = 1, fn
+               p = filterp(f)
+
+               ! fraction of stem receiving incoming radiation
+               frac_rad_abs_by_stem(p) = (esai(p))/(elai(p)+esai(p))
+
+               ! when elai = 0, do not multiply by k_vert (i.e. frac_rad_abs_by_stem = 1)
+               if(elai(p) > 0._r8) frac_rad_abs_by_stem(p) = k_vert * frac_rad_abs_by_stem(p)
+
+               ! if using Satellite Phenology mode, use values in parameter file
+               ! otherwise calculate dbh from stem biomass
+
+               if(use_cn) then
+                  if(stem_biomass(p) > 0._r8) then 
+                     dbh(p) = 2._r8 * sqrt(stem_biomass(p) * (1._r8 - fbw(patch%itype(p))) &
+                          / ( shr_const_pi * htop(p) * k_cyl_vol & 
+                          * nstem(patch%itype(p)) *  wood_density(patch%itype(p))))
+                  else
+                     dbh(p) = 0._r8
+                  endif
+
                else
-                  dbh(p) = 0._r8
+                  dbh(p) = dbh_param(patch%itype(p))
                endif
-            else
-               dbh(p) = dbh_param(patch%itype(p))
-            endif
 
-            ! leaf and stem surface area
-            sa_leaf(p) = elai(p)
-            ! double in spirit of full surface area for sensible heat
-            sa_leaf(p) = 2.*sa_leaf(p)
+               ! leaf and stem surface area
+               sa_leaf(p) = elai(p)
+               ! double in spirit of full surface area for sensible heat
+               sa_leaf(p) = 2.*sa_leaf(p)
 
-            ! Surface area for stem
-            sa_stem(p) = nstem(patch%itype(p))*(htop(p)*shr_const_pi*dbh(p))
-            ! adjust for departure of cylindrical stem model
-            sa_stem(p) = k_cyl_area * sa_stem(p)
+               ! Surface area for stem
+               sa_stem(p) = nstem(patch%itype(p))*(htop(p)*shr_const_pi*dbh(p))
+               ! adjust for departure of cylindrical stem model
+               sa_stem(p) = k_cyl_area * sa_stem(p)
 
-            !
-            ! only calculate separate leaf/stem heat capacity for trees
-            ! and shrubs if dbh is greater than some minimum value
-            ! (set surface area for stem, and fraction absorbed by stem to zero)
-            if(.not.(is_tree(patch%itype(p)) .or. is_shrub(patch%itype(p))) &
-                 .or. dbh(p) < min_stem_diameter) then
-               frac_rad_abs_by_stem(p) = 0.0
-               sa_stem(p) = 0.0
-            endif
+               !
+               ! only calculate separate leaf/stem heat capacity for trees
+               ! and shrubs if dbh is greater than some minimum value
+               ! (set surface area for stem, and fraction absorbed by stem to zero)
+               if(.not.(is_tree(patch%itype(p)) .or. is_shrub(patch%itype(p))) &
+                    .or. dbh(p) < min_stem_diameter) then
+                  frac_rad_abs_by_stem(p) = 0.0
+                  sa_stem(p) = 0.0
+               endif
 
-            ! cross-sectional area of stems
-            carea_stem = shr_const_pi * (dbh(p)*0.5)**2
+               ! cross-sectional area of stems
+               carea_stem = shr_const_pi * (dbh(p)*0.5)**2
 
-            ! if using Satellite Phenology mode, calculate leaf and stem biomass
-            if(.not. use_cn) then
-               ! boreal needleleaf lma*c2b ~ 0.25 kg dry mass/m2(leaf)
-               leaf_biomass(p) = 0.25_r8 * max(0.01_r8, sa_leaf(p)) &
-                    / (1.-fbw(patch%itype(p)))
-               stem_biomass(p) = carea_stem * htop(p) * k_cyl_vol &
-                    * nstem(patch%itype(p)) * wood_density(patch%itype(p)) &
-                    /(1.-fbw(patch%itype(p)))
-            endif
+               ! if using Satellite Phenology mode, calculate leaf and stem biomass
+               if( .not. use_cn ) then
+                  ! boreal needleleaf lma*c2b ~ 0.25 kg dry mass/m2(leaf)
+                  leaf_biomass(p) = 0.25_r8 * max(0.01_r8, sa_leaf(p)) &
+                       / (1.-fbw(patch%itype(p)))
+                  stem_biomass(p) = carea_stem * htop(p) * k_cyl_vol &
+                       * nstem(patch%itype(p)) * wood_density(patch%itype(p)) &
+                       /(1.-fbw(patch%itype(p)))
+               endif
 
-            ! internal longwave fluxes between leaf and stem
-            ! (use same area of interaction i.e. ignore leaf <-> leaf)
-            sa_internal(p) = min(sa_leaf(p),sa_stem(p))
-            sa_internal(p) = k_internal * sa_internal(p)
+               ! calculate specify heat capacity of vegetation
+               ! as weighted averaged of dry biomass and water
+               ! lma_dry has units of kg dry mass/m2 here
+               ! (Appendix B of Bonan et al., GMD, 2018) 
 
-            ! calculate specify heat capacity of vegetation
-            ! as weighted averaged of dry biomass and water
-            ! lma_dry has units of kg dry mass/m2 here
-            ! (Appendix B of Bonan et al., GMD, 2018) 
+               cp_leaf(p)  = leaf_biomass(p) * (c_dry_biomass*(1.-fbw(patch%itype(p))) + (fbw(patch%itype(p)))*c_water)
 
-            cp_leaf(p)  = leaf_biomass(p) * (c_dry_biomass*(1.-fbw(patch%itype(p))) + (fbw(patch%itype(p)))*c_water)
+               ! cp-stem will have units J/k/ground_area
+               cp_stem(p) = stem_biomass(p) * (c_dry_biomass*(1.-fbw(patch%itype(p))) + (fbw(patch%itype(p)))*c_water)
+               ! adjust for departure from cylindrical stem model
+               cp_stem(p) = k_cyl_vol * cp_stem(p)
 
-            ! cp-stem will have units J/k/ground_area
-            cp_stem(p) = stem_biomass(p) * (c_dry_biomass*(1.-fbw(patch%itype(p))) + (fbw(patch%itype(p)))*c_water)
-            ! adjust for departure from cylindrical stem model
-            cp_stem(p) = k_cyl_vol * cp_stem(p)
+               ! resistance between internal stem temperature and canopy air 
+               rstem(p) = rstem_per_dbh(patch%itype(p))*dbh(p)
 
-            ! resistance between internal stem temperature and canopy air 
-            rstem(p) = rstem_per_dbh(patch%itype(p))*dbh(p)
 
-         enddo bioms
+               ! internal longwave fluxes between leaf and stem
+               ! (use same area of interaction i.e. ignore leaf <-> leaf)
+               sa_internal(p) = min(sa_leaf(p),sa_stem(p))
+               sa_internal(p) = k_internal * sa_internal(p)
+
+
+            enddo bioms
+         end if fates_if
       else
-        ! Otherwise set biomass heat storage terms to zero
-        do f = 1, fn
+         ! Otherwise set biomass heat storage terms to zero
+         do f = 1, fn
             p = filterp(f)
             sa_leaf(p)              = (elai(p)+esai(p))
             frac_rad_abs_by_stem(p) = 0._r8
@@ -773,9 +794,9 @@ bioms:   do f = 1, fn
             cp_leaf(p)              = 0._r8
             cp_stem(p)              = 0._r8
             rstem(p)                = 0._r8
-        end do
+         end do
       end if
-
+      
 
       ! calculate daylength control for Vcmax
       do f = 1, fn
@@ -1390,7 +1411,7 @@ bioms:   do f = 1, fn
          !  does not account for changes in SH or internal LW,
          !  as that would change result for t_veg above
          if (use_biomass_heat_storage) then
-            if (stem_biomass(p) > 0._r8) then
+            if (cp_stem(p) > 0._r8) then
                dt_stem(p) = (frac_rad_abs_by_stem(p)*(sabv(p) + air(p) + bir(p)*ts_ini(p)**4 &
                     + cir(p)*lw_grnd) - eflx_sh_stem(p) &
                     + lw_leaf(p)- lw_stem(p))/(cp_stem(p)/dtime &
