@@ -25,7 +25,8 @@ module HillslopeHydrologyMod
   public HillslopeSetLowlandUplandPfts
   public HillslopeDominantPft
   public HillslopeDominantLowlandPft
-  
+  public HillslopePftFromFile
+
   ! PRIVATE 
   character(len=*), parameter, private :: sourcefile = &
        __FILE__
@@ -61,18 +62,20 @@ contains
     ! !ARGUMENTS:
     type(bounds_type), intent(in) :: bounds
     character(len=*) , intent(in) :: fsurdat    ! surface data file name
-    real(r8), pointer     :: ihillslope_in(:,:) ! read in - integer
+    integer, pointer      :: ihillslope_in(:,:) ! read in - integer
     real(r8), pointer     :: fhillslope_in(:,:) ! read in - float
-    integer,  allocatable :: pct_hillslope(:,:) ! percent of landunit occupied by hillslope
     integer,  allocatable :: hill_ndx(:,:)      ! hillslope index
     integer,  allocatable :: col_ndx(:,:)       ! column index
     integer,  allocatable :: col_dndx(:,:)      ! downhill column index
+    integer,  allocatable :: hill_pftndx(:,:)   ! hillslope pft index []
+    real(r8), allocatable :: pct_hillslope(:,:) ! percent of landunit occupied by hillslope
     real(r8), allocatable :: hill_slope(:,:)    ! hillslope slope  [m/m]
     real(r8), allocatable :: hill_aspect(:,:)   ! hillslope azimuth [radians]
     real(r8), allocatable :: hill_area(:,:)     ! hillslope area   [m2]
     real(r8), allocatable :: hill_length(:,:)   ! hillslope length [m]
     real(r8), allocatable :: hill_width(:,:)    ! hillslope width  [m]
     real(r8), allocatable :: hill_height(:,:)   ! hillslope height [m]
+    real(r8), allocatable :: hill_bedrock(:,:)  ! hillslope bedrock depth [m]
 
     type(file_desc_t)     :: ncid                 ! netcdf id
     logical               :: readvar              ! check whether variable on file    
@@ -104,9 +107,9 @@ contains
          hill_height  (bounds%begl:bounds%endl,nmax_col_per_hill), &
          stat=ierr)
     
-    allocate(ihillslope_in(bounds%begg:bounds%endg,nhillslope))
+    allocate(fhillslope_in(bounds%begg:bounds%endg,nhillslope))
     
-    call ncd_io(ncid=ncid, varname='pct_hillslope', flag='read', data=ihillslope_in, dim1name=grlnd, readvar=readvar)
+    call ncd_io(ncid=ncid, varname='pct_hillslope', flag='read', data=fhillslope_in, dim1name=grlnd, readvar=readvar)
     if (.not. readvar) then
        if (masterproc) then
           call endrun( 'ERROR:: pct_hillslope not found on surface data set.'//errmsg(sourcefile, __LINE__) )
@@ -114,9 +117,9 @@ contains
     end if
     do l = bounds%begl,bounds%endl
        g = lun%gridcell(l)
-       pct_hillslope(l,:) = ihillslope_in(g,:)
+       pct_hillslope(l,:) = fhillslope_in(g,:)
     enddo
-    deallocate(ihillslope_in)
+    deallocate(fhillslope_in)
     
     allocate(ihillslope_in(bounds%begg:bounds%endg,nmax_col_per_hill))
     
@@ -222,7 +225,35 @@ contains
        g = lun%gridcell(l)
        hill_height(l,:) = fhillslope_in(g,:)
     enddo
+    
+    call ncd_io(ncid=ncid, varname='h_bedrock', flag='read', data=fhillslope_in, dim1name=grlnd, readvar=readvar)
+    if (readvar) then
+       allocate(hill_bedrock (bounds%begl:bounds%endl,nmax_col_per_hill), stat=ierr)
+       if (masterproc) then
+          write(iulog,*) 'h_bedrock found on surface data set'
+       end if
+    end if
+    do l = bounds%begl,bounds%endl
+       g = lun%gridcell(l)
+       hill_bedrock(l,:) = fhillslope_in(g,:)
+    enddo
+
     deallocate(fhillslope_in)
+    
+    allocate(ihillslope_in(bounds%begg:bounds%endg,nmax_col_per_hill))
+    call ncd_io(ncid=ncid, varname='h_pftndx', flag='read', data=ihillslope_in, dim1name=grlnd, readvar=readvar)
+    if (readvar) then
+       allocate(hill_pftndx (bounds%begl:bounds%endl,nmax_col_per_hill), stat=ierr)
+       if (masterproc) then
+          write(iulog,*) 'h_pftndx found on surface data set'
+       end if
+       do l = bounds%begl,bounds%endl
+          g = lun%gridcell(l)
+          hill_pftndx(l,:) = ihillslope_in(g,:)
+       enddo
+    end if
+
+    deallocate(ihillslope_in)
     
     !  Set hillslope hydrology column level variables
     !  This needs to match how columns set up in subgridMod
@@ -267,6 +298,20 @@ contains
              col%hill_area(c) = hill_area(l,ci)
              ! azimuth of column
              col%hill_aspect(c) = hill_aspect(l,ci)
+             ! bedrock to depth of column 
+             if ( allocated(hill_bedrock) ) then
+                do j = 1,nlevsoi
+                   if(zisoi(j-1) > zmin_bedrock) then
+                      if (zisoi(j-1) < hill_bedrock(l,ci) .and. zisoi(j) >= hill_bedrock(l,ci)) then
+                         col%nbedrock(c) = j
+                      end if
+                   endif
+                enddo
+             endif
+             ! pft index of column
+             if ( allocated(hill_pftndx) ) &
+                  col%hill_pftndx(c) = hill_pftndx(l,ci)
+
           enddo
 
           ! Calculate total (representative) hillslope area on landunit
@@ -309,18 +354,31 @@ contains
          hill_slope,hill_area,hill_length, &
          hill_width,hill_height,hill_aspect)
     
+    if ( allocated(hill_bedrock) ) then
+       deallocate(hill_bedrock)
+    else
+       ! Modify hillslope soil thickness profile
+       call HillslopeSoilThicknessProfile(bounds,&
+            soil_profile_method=soil_profile_set_lowland_upland)
+
+    endif
+    if ( allocated(hill_pftndx) ) then
+       deallocate(hill_pftndx)
+       call HillslopePftFromFile()
+    else
+       ! Modify pft distributions
+       ! this may require modifying subgridMod/natveg_patch_exists
+       ! to ensure patch exists in every gridcell
+
+       call HillslopeDominantPft()
+    
+       !upland_ivt  = 13 ! c3 non-arctic grass
+       !lowland_ivt = 7  ! broadleaf deciduous tree 
+       !call HillslopeSetLowlandUplandPfts(lowland_ivt=7,upland_ivt=13)
+    endif
+
     call ncd_pio_closefile(ncid)
 
-    ! Modify pft distributions
-    !upland_ivt  = 13 ! c3 non-arctic grass
-    !lowland_ivt = 7  ! broadleaf deciduous tree 
-    !call HillslopeSetLowlandUplandPfts(lowland_ivt=7,upland_ivt=13)
-
-    call HillslopeDominantPft()
-    
-    ! Modify hillslope soil thickness profile
-    !call HillslopeSoilThicknessProfile(bounds,&
-    !soil_profile_method=soil_profile_set_lowland_upland)
     
   end subroutine InitHillslope
 
@@ -660,5 +718,81 @@ contains
     !$OMP END PARALLEL DO
 
   end subroutine HillslopeDominantLowlandPft
+
+  !------------------------------------------------------------------------
+  subroutine HillslopePftFromFile()
+    !
+    ! !DESCRIPTION: 
+    ! Reassign patch weights using indices from surface data file
+    !
+    ! !USES
+    use LandunitType    , only : lun                
+    use ColumnType      , only : col                
+    use decompMod       , only : get_clump_bounds, get_proc_clumps
+    use clm_varcon      , only : ispval
+    use landunit_varcon , only : istsoil
+    use PatchType       , only : patch
+
+    use GridcellType    , only : grc
+    !
+    ! !ARGUMENTS:
+    !
+    ! !LOCAL VARIABLES:
+    integer :: n,nc,p,pc,l,c    ! indices
+    integer :: nclumps             ! number of clumps on this processor
+    real(r8) :: sum_wtcol, sum_wtlun, sum_wtgrc
+    type(bounds_type) :: bounds_proc
+    type(bounds_type) :: bounds_clump
+
+    !------------------------------------------------------------------------
+
+    nclumps = get_proc_clumps()
+
+    !$OMP PARALLEL DO PRIVATE (nc, bounds_clump, l, nh, n, c)
+    do nc = 1, nclumps
+
+       call get_clump_bounds(nc, bounds_clump)
+
+       do l = bounds_clump%begl, bounds_clump%endl
+
+          if (lun%itype(l) == istsoil) then
+             do c = lun%coli(l), lun%colf(l)
+                ! this may require modifying
+                ! subgridMod/natveg_patch_exists to ensure that
+                ! a patch exists on each column
+                
+                ! find patch index of specified vegetation type
+                pc = ispval
+                do p = col%patchi(c), col%patchf(c)
+                   if(patch%itype(p) == col%hill_pftndx(c)) pc = p
+                enddo
+
+                ! only reweight if pft exist within column
+                if (pc /= ispval) then
+                   sum_wtcol = sum(patch%wtcol(col%patchi(c):col%patchf(c)))
+                   sum_wtlun = sum(patch%wtlunit(col%patchi(c):col%patchf(c)))
+                   sum_wtgrc = sum(patch%wtgcell(col%patchi(c):col%patchf(c)))
+
+                   patch%wtcol(col%patchi(c):col%patchf(c)) = 0._r8
+                   patch%wtlunit(col%patchi(c):col%patchf(c)) = 0._r8
+                   patch%wtgcell(col%patchi(c):col%patchf(c)) = 0._r8
+
+                   patch%wtcol(pc)   = sum_wtcol
+                   patch%wtlunit(pc) = sum_wtlun
+                   patch%wtgcell(pc) = sum_wtgrc
+
+                else
+                   write(iulog,*) 'no pft in column ',c, col%hill_pftndx(c)
+                   write(iulog,*) 'pfts ',c,patch%itype(col%patchi(c):col%patchf(c))
+                   write(iulog,*) 'weights ',c,patch%wtcol(col%patchi(c):col%patchf(c))
+                   write(iulog,*) 'location ',c,grc%londeg(col%gridcell(c)),grc%latdeg(col%gridcell(c))
+                endif
+             enddo    ! end loop c
+          endif
+       enddo ! end loop l
+    enddo    ! end loop nc
+    !$OMP END PARALLEL DO
+
+  end subroutine HillslopePftFromFile
 
 end module HillslopeHydrologyMod
