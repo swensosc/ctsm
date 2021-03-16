@@ -10,6 +10,8 @@ module lnd_import_export
   use Waterlnd2atmBulkType , only: waterlnd2atmbulk_type
   use Wateratm2lndBulkType , only: wateratm2lndbulk_type
   use clm_cpl_indices
+!scs
+  use GridcellType      , only : grc
   !
   implicit none
   !===============================================================================
@@ -89,6 +91,8 @@ contains
 
        wateratm2lndbulk_inst%volr_grc(g)   = x2l(index_x2l_Flrr_volr,i) * (ldomain%area(g) * 1.e6_r8)
        wateratm2lndbulk_inst%volrmch_grc(g)= x2l(index_x2l_Flrr_volrmch,i) * (ldomain%area(g) * 1.e6_r8)
+       wateratm2lndbulk_inst%tdepth_grc(g)    = x2l(index_x2l_Sr_tdepth,i)
+       wateratm2lndbulk_inst%tdepthmax_grc(g) = x2l(index_x2l_Sr_tdepth_max,i)
 
        ! Determine required receive fields
 
@@ -341,11 +345,28 @@ contains
           l2x(index_l2x_Flgl_qice(num),i) = lnd2glc_inst%qice_grc(g,num)
        end do
 
+       
        !--------------------------
        ! Check for nans to coupler
        !--------------------------
 
        call check_for_nans(l2x(:,i), fname, begg)
+
+       ! Check if any output sent to the coupler is NaN
+       if ( any(isnan(l2x(:,i))) )then
+          write(iulog,*) '# of NaNs = ', count(isnan(l2x(:,i)))
+          write(iulog,*) 'Which are NaNs = ', isnan(l2x(:,i))
+          do k = 1, size(l2x(:,i))
+             if ( isnan(l2x(k,i)) )then
+                call shr_string_listGetName( seq_flds_l2x_fields, k, fname )
+                write(iulog,*) trim(fname)
+             end if
+          end do
+          write(iulog,*) 'gridcell index = ', g
+!scs
+          write(iulog,*) 'lon/lat = ', grc%londeg(g), grc%latdeg(g)
+          call endrun( sub//' ERROR: One or more of the output from CLM to the coupler are NaN ' )
+       end if
 
     end do
 

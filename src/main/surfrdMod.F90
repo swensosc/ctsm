@@ -286,13 +286,14 @@ contains
     use clm_varctl  , only : create_crop_landunit, collapse_urban, &
                              toosmall_soil, toosmall_crop, toosmall_glacier, &
                              toosmall_lake, toosmall_wetland, toosmall_urban, &
-                             n_dom_landunits
+                             n_dom_landunits, use_hillslope
     use fileutils           , only : getfil
     use domainMod           , only : domain_type, domain_init, domain_clean
     use clm_instur          , only : wt_lunit, topo_glc_mec
     use landunit_varcon     , only : max_lunit, istsoil, isturb_MIN, isturb_MAX
     use dynSubgridControlMod, only : get_flanduse_timeseries
     use dynSubgridControlMod, only : get_do_transient_lakes
+
 
     !
     ! !ARGUMENTS:
@@ -403,6 +404,11 @@ contains
     ! Obtain vegetated landunit info
 
     call surfrd_veg_all(begg, endg, ncid, ldomain%ns, actual_numcft)
+
+    ! Obtain hillslope hydrology info
+    if(use_hillslope) then 
+       call surfrd_hillslope(begg, endg, ncid, ldomain%ns)
+    endif
 
     if (use_cndv) then
        call surfrd_veg_dgvm(begg, endg)
@@ -953,6 +959,7 @@ contains
   end subroutine surfrd_veg_dgvm
 
   !-----------------------------------------------------------------------
+
   subroutine surfrd_lakemask(begg, endg)
     !
     ! !DESCRIPTION:
@@ -1005,6 +1012,67 @@ contains
     call ncd_pio_closefile(ncid_dynuse)
 
   end subroutine surfrd_lakemask
+
+
+  subroutine surfrd_hillslope(begg, endg, ncid, ns)
+    !
+    ! !DESCRIPTION:
+    ! Determine number of hillslopes and columns for hillslope hydrology mode
+    !
+    ! !USES:
+    use clm_instur, only : ncol_per_hillslope
+    use clm_varctl, only : nhillslope,nmax_col_per_hill
+    use ncdio_pio       , only : ncd_inqdid, ncd_inqdlen
+    !
+    ! !ARGUMENTS:
+    integer, intent(in) :: begg, endg
+    type(file_desc_t),intent(inout) :: ncid   ! netcdf id
+    integer          ,intent(in)    :: ns     ! domain size
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: nh, m                          ! index
+    integer  :: dimid,varid                    ! netCDF id's
+    integer  :: ier                            ! error status	
+    logical  :: readvar                        ! is variable on dataset
+    integer,pointer :: arrayl(:)              ! local array
+    character(len=32) :: subname = 'surfrd_hillslope'  ! subroutine name
+!-----------------------------------------------------------------------
+
+    ! This temporary array is needed because ncd_io expects a pointer, 
+    !so we can't directly pass 
+
+    ! number of hillslopes per landunit
+    call ncd_inqdid(ncid,'nhillslope',dimid,readvar) 
+    if (.not. readvar) then
+       write(iulog,*)'surfrd error: nhillslope not on surface data file'
+       nhillslope = 1
+    else
+       call ncd_inqdlen(ncid,dimid,nh)
+       nhillslope = nh
+    endif
+    ! maximum number of columns per landunit
+    call ncd_inqdid(ncid,'nmaxhillcol',dimid,readvar) 
+    if (.not. readvar) then
+       write(iulog,*)'surfrd error: nmax_col_per_hill not on surface data file'
+       nmax_col_per_hill = 1
+    else
+       call ncd_inqdlen(ncid,dimid,nh)
+       nmax_col_per_hill = nh
+    endif
+    ! actual number of columns per landunit
+    allocate(arrayl(begg:endg))
+    call ncd_io(ncid=ncid, varname='nhillcolumns', flag='read', data=arrayl, &
+         dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) then
+       write(iulog,*)'surfrd error: nhillcolumns not on surface data file'
+       ncol_per_hillslope(begg:endg) = 1
+       write(iulog,*)'setting ncol_per_hillslope[:] = 1'
+    else
+       ncol_per_hillslope(begg:endg) = arrayl(begg:endg)
+    endif
+    deallocate(arrayl)
+
+  end subroutine surfrd_hillslope
 
 
 end module surfrdMod

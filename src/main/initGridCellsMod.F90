@@ -11,7 +11,7 @@ module initGridCellsMod
   ! these modules (or the two modules should be combined into one).
   !
   ! !USES:
-#include "shr_assert.h"
+#include "shr_assert.h"  
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_log_mod    , only : errMsg => shr_log_errMsg
   use spmdMod        , only : masterproc,iam
@@ -231,7 +231,7 @@ contains
     integer , intent(inout) :: pi                ! patch index
     !
     ! !LOCAL VARIABLES:
-    integer  :: m                                ! index
+    integer  :: m,ci2                            ! index
     integer  :: npatches                         ! number of patches in landunit
     integer  :: ncols
     integer  :: nlunits
@@ -239,6 +239,7 @@ contains
     integer  :: ncols_added                      ! number of columns actually added
     integer  :: nlunits_added                    ! number of landunits actually added
     real(r8) :: wtlunit2gcell                    ! landunit weight in gridcell
+    real(r8) :: wtcol2lunit                      ! column weight in landunit
     !------------------------------------------------------------------------
 
     ! Set decomposition properties
@@ -254,17 +255,17 @@ contains
     if (nlunits > 0) then
        call add_landunit(li=li, gi=gi, ltype=ltype, wtgcell=wtlunit2gcell)
        nlunits_added = nlunits_added + 1
-       
-       ! Assume one column on the landunit
-       call add_column(ci=ci, li=li, ctype=1, wtlunit=1.0_r8)
-       ncols_added = ncols_added + 1
-
-       do m = natpft_lb,natpft_ub
-          if (natveg_patch_exists(gi, m)) then
-             call add_patch(pi=pi, ci=ci, ptype=m, wtcol=wt_nat_patch(gi,m))
-             npatches_added = npatches_added + 1
-          end if
-       end do
+       wtcol2lunit = 1.0_r8/real(ncols,r8)
+       do ci2 = 1,ncols
+          call add_column(ci=ci, li=li, ctype=1, wtlunit=wtcol2lunit)
+          ncols_added = ncols_added + 1
+          do m = natpft_lb,natpft_ub
+             if (natveg_patch_exists(gi, m)) then
+                call add_patch(pi=pi, ci=ci, ptype=m, wtcol=wt_nat_patch(gi,m))
+                npatches_added = npatches_added + 1
+             end if
+          end do
+       enddo
     end if
 
     SHR_ASSERT_FL(nlunits_added == nlunits, sourcefile, __LINE__)

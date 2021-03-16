@@ -83,6 +83,7 @@ module atm2lndType
      real(r8), pointer :: forc_solad_grc                (:,:) => null() ! direct beam radiation (numrad) (vis=forc_sols , nir=forc_soll )
      real(r8), pointer :: forc_solai_grc                (:,:) => null() ! diffuse radiation (numrad) (vis=forc_solsd, nir=forc_solld)
      real(r8), pointer :: forc_solar_grc                (:)   => null() ! incident solar radiation
+     real(r8), pointer :: forc_solar_col                (:)   => null() ! incident solar radiation
      real(r8), pointer :: forc_ndep_grc                 (:)   => null() ! nitrogen deposition rate (gN/m2/s)
      real(r8), pointer :: forc_pc13o2_grc               (:)   => null() ! C13O2 partial pressure (Pa)
      real(r8), pointer :: forc_po2_grc                  (:)   => null() ! O2 partial pressure (Pa)
@@ -103,7 +104,7 @@ module atm2lndType
      real(r8), pointer :: forc_pbot_downscaled_col      (:)   => null() ! downscaled atm pressure (Pa)
      real(r8), pointer :: forc_rho_downscaled_col       (:)   => null() ! downscaled atm density (kg/m**3)
      real(r8), pointer :: forc_lwrad_downscaled_col     (:)   => null() ! downscaled atm downwrd IR longwave radiation (W/m**2)
-
+     real(r8), pointer :: forc_solad_col                (:,:) => null() ! direct beam radiation (numrad) (vis=forc_sols , nir=forc_soll )
 
      ! time averaged quantities
      real(r8) , pointer :: fsd24_patch                  (:)   => null() ! patch 24hr average of direct beam radiation 
@@ -501,6 +502,8 @@ contains
     allocate(this%forc_th_downscaled_col        (begc:endc))        ; this%forc_th_downscaled_col        (:)   = ival
     allocate(this%forc_rho_downscaled_col       (begc:endc))        ; this%forc_rho_downscaled_col       (:)   = ival
     allocate(this%forc_lwrad_downscaled_col     (begc:endc))        ; this%forc_lwrad_downscaled_col     (:)   = ival
+    allocate(this%forc_solad_col                (begc:endc,numrad)) ; this%forc_solad_col                (:,:) = ival
+    allocate(this%forc_solar_col                (begc:endc))        ; this%forc_solar_col                (:)   = ival
 
     allocate(this%fsd24_patch                   (begp:endp))        ; this%fsd24_patch                   (:)   = nan
     allocate(this%fsd240_patch                  (begp:endp))        ; this%fsd240_patch                  (:)   = nan
@@ -580,6 +583,12 @@ contains
          avgflag='A', long_name='atmospheric air temperature received from atmosphere (pre-downscaling)', &
          ptr_gcell=this%forc_t_not_downscaled_grc, default='inactive')
 
+!scs
+    this%forc_solar_col(begc:endc) = spval
+    call hist_addfld1d (fname='FSDS_COL', units='W/m^2',  &
+         avgflag='A', long_name='column atmospheric incident solar radiation', &
+         ptr_col=this%forc_solar_col, default='inactive')
+
     this%forc_t_downscaled_col(begc:endc) = spval
     call hist_addfld1d (fname='TBOT', units='K',  &
          avgflag='A', long_name='atmospheric air temperature (downscaled to columns in glacier regions)', &
@@ -615,6 +624,15 @@ contains
          avgflag='A', long_name='atmospheric air potential temperature (downscaled to columns in glacier regions)', &
          ptr_col=this%forc_th_downscaled_col)
 
+!scs
+!!$    this%forc_solad_col(begc:endc,:) = spval
+!!$    call hist_addfld1d (fname='SW_VIS_COL', units='W/m^2',  &
+!!$         avgflag='A', long_name='column direct solar radiation', &
+!!$         ptr_col=this%forc_solad_col(:,1), default='inactive')
+!!$    call hist_addfld1d (fname='SW_NIR_COL', units='W/m^2',  &
+!!$         avgflag='A', long_name='column direct solar radiation', &
+!!$         ptr_col=this%forc_solad_col(:,2), default='inactive')
+!scs
 
     ! Time averaged quantities
     this%fsi24_patch(begp:endp) = spval
@@ -1013,6 +1031,8 @@ contains
     deallocate(this%forc_th_downscaled_col)
     deallocate(this%forc_rho_downscaled_col)
     deallocate(this%forc_lwrad_downscaled_col)
+    deallocate(this%forc_solad_col)
+    deallocate(this%forc_solar_col)
 
     deallocate(this%fsd24_patch)
     deallocate(this%fsd240_patch)

@@ -8,7 +8,7 @@ module clm_instMod
   use shr_kind_mod    , only : r8 => shr_kind_r8
   use decompMod       , only : bounds_type
   use clm_varpar      , only : ndecomp_pools, nlevdecomp_full
-  use clm_varctl      , only : use_cn, use_c13, use_c14, use_lch4, use_cndv, use_fates
+  use clm_varctl      , only : use_cn, use_c13, use_c14, use_lch4, use_cndv, use_fates, use_hillslope
   use clm_varctl      , only : use_century_decomp, use_crop, snow_cover_fraction_method, paramfile
   use clm_varcon      , only : bdsno, c13ratio, c14ratio
   use landunit_varcon , only : istice_mec, istsoil
@@ -47,6 +47,7 @@ module clm_instMod
   use EnergyFluxType                  , only : energyflux_type
   use FrictionVelocityMod             , only : frictionvel_type
   use GlacierSurfaceMassBalanceMod    , only : glacier_smb_type
+  use HillslopeHydrologyMod           , only : InitHillslope
   use InfiltrationExcessRunoffMod     , only : infiltration_excess_runoff_type
   use IrrigationMod                   , only : irrigation_type
   use LakeStateType                   , only : lakestate_type
@@ -324,6 +325,10 @@ contains
 
     call saturated_excess_runoff_inst%Init(bounds)
     call infiltration_excess_runoff_inst%Init(bounds)
+
+    if(use_hillslope) then 
+       call InitHillslope(bounds, fsurdat)
+    endif
 
     call solarabs_inst%Init(bounds)
 

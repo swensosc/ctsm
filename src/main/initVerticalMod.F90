@@ -22,7 +22,7 @@ module initVerticalMod
   use clm_varctl        , only : use_fates
   use clm_varcon        , only : zlak, dzlak, zsoi, dzsoi, zisoi, dzsoi_decomp, spval, ispval, grlnd 
   use column_varcon     , only : icol_roof, icol_sunwall, icol_shadewall, is_hydrologically_active
-  use landunit_varcon   , only : istdlak, istice_mec
+  use landunit_varcon   , only : istdlak, istice_mec, istsoil
   use fileutils         , only : getfil
   use LandunitType      , only : lun                
   use GridcellType      , only : grc                
@@ -65,7 +65,7 @@ contains
     real(r8)            , intent(in)    :: thick_roof(bounds%begl:)
     !
     ! LOCAL VARAIBLES:
-    integer               :: c,l,g,i,j,lev     ! indices 
+    integer               :: c,l,g,i,j,lev,nh  ! indices 
     type(file_desc_t)     :: ncid              ! netcdf id
     logical               :: readvar 
     integer               :: dimid             ! dimension id
@@ -91,7 +91,6 @@ contains
     integer               :: begc, endc
     integer               :: begl, endl
     integer               :: jmin_bedrock
-
     ! Possible values for levgrnd_class. The important thing is that, for a given column,
     ! layers that are fundamentally different (e.g., soil vs bedrock) have different
     ! values. This information is used in the vertical interpolation in init_interp.
@@ -201,7 +200,7 @@ contains
              dzsoi(j) = soil_layerstruct_userdefined(j)
           end do
        else if (soil_layerstruct_predefined == '49SL_10m') then
-          !scs: 10 meter soil column, nlevsoi set to 49 in clm_varpar
+          ! 10 meter soil column, nlevsoi set to 49 in clm_varpar
           do j = 1, 10
              dzsoi(j) = 1.e-2_r8     ! 10-mm layers
           enddo
@@ -697,6 +696,8 @@ contains
        slopemax = 0.4_r8
        slope0 = slopemax**(-1._r8/slopebeta)
        col%micro_sigma(c) = (col%topo_slope(c) + slope0)**(-slopebeta)
+!scs
+!       col%micro_sigma(c) = 0.05_r8
     end do
 
     call ncd_pio_closefile(ncid)

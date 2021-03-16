@@ -48,6 +48,10 @@ module clm_instur
   
   ! whether we have lake to initialise in each grid cell
   logical , pointer :: haslake(:)
+
+  ! subgrid hillslope hydrology constituents
+  integer, pointer :: ncol_per_hillslope(:) 
+
   !-----------------------------------------------------------------------
 
 end module clm_instur

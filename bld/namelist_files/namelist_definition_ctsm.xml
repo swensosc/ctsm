@@ -719,6 +719,11 @@ LUNA operates on C3 and non-crop vegetation (see vcmax_opt for how other veg is 
 LUNA: Leaf Utilization of Nitrogen for Assimilation
 </entry>
 
+<entry id="use_hillslope" type="logical" category="physics"
+        group="clm_inparm" valid_values="" value=".false.">
+Toggle to turn on the hillslope hydrology model
+</entry>
+
 <entry id="use_hydrstress" type="logical" category="physics"
         group="clm_inparm" valid_values="" value=".false.">
 Toggle to turn on the plant hydraulic stress model

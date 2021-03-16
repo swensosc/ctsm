@@ -12,7 +12,7 @@ module filterMod
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_log_mod    , only : errMsg => shr_log_errMsg
   use abortutils     , only : endrun
-  use clm_varctl     , only : iulog
+  use clm_varctl     , only : iulog, use_hillslope
   use decompMod      , only : bounds_type  
   use GridcellType   , only : grc
   use LandunitType   , only : lun                
@@ -68,7 +68,8 @@ module filterMod
 
      integer, pointer :: hydrologyc(:)   ! hydrology filter (columns)
      integer :: num_hydrologyc           ! number of columns in hydrology filter 
-
+     integer, pointer :: hillslopec(:)   ! hillslope hydrology filter (columns)
+     integer :: num_hillslope            ! number of hillslope hydrology (columns)
      integer, pointer :: urbanl(:)       ! urban filter (landunits)
      integer :: num_urbanl               ! number of landunits in urban filter 
      integer, pointer :: nourbanl(:)     ! non-urban filter (landunits)
@@ -214,6 +215,7 @@ contains
        allocate(this_filter(nc)%natvegp(bounds%endp-bounds%begp+1))
 
        allocate(this_filter(nc)%hydrologyc(bounds%endc-bounds%begc+1))
+       allocate(this_filter(nc)%hillslopec(bounds%endc-bounds%begc+1))
 
        allocate(this_filter(nc)%urbanp(bounds%endp-bounds%begp+1))
        allocate(this_filter(nc)%nourbanp(bounds%endp-bounds%begp+1))
@@ -290,6 +292,7 @@ contains
     use decompMod       , only : BOUNDS_LEVEL_CLUMP
     use pftconMod       , only : npcropmin
     use landunit_varcon , only : istsoil, istcrop, istice_mec
+    use clm_varcon      , only : ispval
     !
     ! !ARGUMENTS:
     type(bounds_type)       , intent(in)    :: bounds  
@@ -405,6 +408,23 @@ contains
        end if
     end do
     this_filter(nc)%num_hydrologyc = f
+
+    ! Currently only natveg (see subgridMod); should be possible 
+    ! for a subset of istsoil/istcrop landunits, e.g. when nhillcol = 0
+
+    ! Create hillslope hydrology filters at column-level
+
+    fs = 0
+    do c = bounds%begc,bounds%endc
+       if (col%active(c) .or. include_inactive) then
+          l = col%landunit(c)
+          if (lun%itype(l) == istsoil .and. use_hillslope) then
+             fs = fs + 1
+             this_filter(nc)%hillslopec(fs) = c
+          end if
+       end if
+    end do
+    this_filter(nc)%num_hillslope = fs
 
     ! Create prognostic crop and soil w/o prog. crop filters at patch-level
     ! according to where the crop model should be used

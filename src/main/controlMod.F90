@@ -245,6 +245,8 @@ contains
 
     namelist /clm_inparm/ use_biomass_heat_storage
 
+    namelist /clm_inparm/ use_hillslope
+
     namelist /clm_inparm/ use_hydrstress
 
     namelist /clm_inparm/ use_dynroot
@@ -744,6 +746,8 @@ contains
 
     call mpi_bcast (use_biomass_heat_storage, 1, MPI_LOGICAL, 0, mpicom, ier)
 
+    call mpi_bcast (use_hillslope, 1, MPI_LOGICAL, 0, mpicom, ier)
+
     call mpi_bcast (use_hydrstress, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     call mpi_bcast (use_dynroot, 1, MPI_LOGICAL, 0, mpicom, ier)
@@ -801,6 +805,7 @@ contains
     ! glacier_mec variables
     call mpi_bcast (maxpatch_glcmec, 1, MPI_INTEGER, 0, mpicom, ier)
     call mpi_bcast (glc_do_dynglacier, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (glcmec_downscale_longwave, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (glc_snow_persistence_max_days, 1, MPI_INTEGER, 0, mpicom, ier)
 
     ! history file variables
@@ -972,6 +977,11 @@ contains
     write(iulog,*) '   Max snow depth (mm) =', h2osno_max
 
     write(iulog,*) '   glc number of elevation classes =', maxpatch_glcmec
+       if (glcmec_downscale_longwave) then
+          write(iulog,*) '   Longwave radiation will be downscaled'
+       else
+          write(iulog,*) '   Longwave radiation will NOT be downscaled'
+       endif
     if (glc_do_dynglacier) then
        write(iulog,*) '   glc CLM glacier areas and topography WILL evolve dynamically'
     else
@@ -1004,6 +1014,7 @@ contains
     end if
 
     write(iulog,*) '   land-ice albedos      (unitless 0-1)   = ', albice
+    write(iulog,*) '   hillslope hydrology    = ', use_hillslope
     write(iulog,*) '   pre-defined soil layer structure = ', soil_layerstruct_predefined
     write(iulog,*) '   user-defined soil layer structure = ', soil_layerstruct_userdefined
     write(iulog,*) '   user-defined number of soil layers = ', soil_layerstruct_userdefined_nlevsoi

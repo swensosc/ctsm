@@ -129,6 +129,12 @@ module clm_varctl
   ! true => separate crop landunit is not created by default
   logical, public :: create_crop_landunit = .false.     
   
+  ! number of hillslopes per landunit
+  integer, public :: nhillslope = 0
+
+  ! maximum number of hillslope columns per landunit
+  integer, public :: nmax_col_per_hill = 1
+
   ! do not irrigate by default
   logical, public :: irrigate = .false.            
 
@@ -198,6 +204,9 @@ module clm_varctl
 
   ! which snow cover fraction parameterization to use
   character(len=64), public :: snow_cover_fraction_method
+
+  ! true => repartition rain/snow from atm based on temperature
+  logical,  public :: repartition_rain_snow = .false.
 
   ! true => write global average diagnostics to std out
   logical,  public :: wrtdia       = .false.            
@@ -297,6 +306,12 @@ module clm_varctl
   integer, public :: soil_layerstruct_userdefined_nlevsoi = iundef
 
   !----------------------------------------------------------
+  ! hillslope hydrology switch
+  !----------------------------------------------------------
+
+  logical, public :: use_hillslope = .false. ! true => use multi-column hillslope hydrology
+
+  !----------------------------------------------------------
   ! plant hydraulic stress switch
   !----------------------------------------------------------
 
@@ -314,6 +329,9 @@ module clm_varctl
 
   ! true => CLM glacier area & topography changes dynamically 
   logical , public :: glc_do_dynglacier = .false.           
+
+  ! true => downscale longwave radiation
+  logical , public :: glcmec_downscale_longwave = .true.    
 
   ! number of days before one considers the perennially snow-covered point 'land ice'
   integer , public :: glc_snow_persistence_max_days = 7300  

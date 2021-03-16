@@ -478,7 +478,7 @@ contains
             atm_topo = atm2lnd_inst%forc_topo_grc(bounds_clump%begg:bounds_clump%endg))
 
        call downscale_forcings(bounds_clump, &
-            topo_inst, atm2lnd_inst, water_inst%wateratm2lndbulk_inst, &
+            topo_inst, atm2lnd_inst, surfalb_inst, water_inst%wateratm2lndbulk_inst, &
             eflx_sh_precip_conversion = energyflux_inst%eflx_sh_precip_conversion_col(bounds_clump%begc:bounds_clump%endc))
 
        call set_atm2lnd_water_tracers(bounds_clump, &
@@ -857,6 +857,7 @@ contains
        call t_startf('hydro_without_drainage')
 
        call HydrologyNoDrainage(bounds_clump,                                &
+            filter(nc)%num_hillslope, filter(nc)%hillslopec,                 &
             filter(nc)%num_nolakec, filter(nc)%nolakec,                      &
             filter(nc)%num_hydrologyc, filter(nc)%hydrologyc,                &
             filter(nc)%num_urbanc, filter(nc)%urbanc,                        &
@@ -1026,12 +1027,13 @@ contains
 
        call t_startf('hydro2_drainage')
 
-       call HydrologyDrainage(bounds_clump,                   &
+       call HydrologyDrainage(bounds_clump,                    &
+            filter(nc)%num_hillslope, filter(nc)%hillslopec,    &
             filter(nc)%num_nolakec, filter(nc)%nolakec,       &
             filter(nc)%num_hydrologyc, filter(nc)%hydrologyc, &
             filter(nc)%num_urbanc, filter(nc)%urbanc,         &
             filter(nc)%num_do_smb_c, filter(nc)%do_smb_c,     &
-            atm2lnd_inst, glc2lnd_inst, temperature_inst,     &
+            glc2lnd_inst, temperature_inst,     &
             soilhydrology_inst, soilstate_inst, water_inst%waterstatebulk_inst, &
             water_inst%waterdiagnosticbulk_inst, water_inst%waterbalancebulk_inst, &
             water_inst%waterfluxbulk_inst, water_inst%wateratm2lndbulk_inst, &

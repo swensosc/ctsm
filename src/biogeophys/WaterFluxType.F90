@@ -72,6 +72,9 @@ module WaterFluxType
      real(r8), pointer :: qflx_infl_col            (:)   ! col infiltration (mm H2O /s)
      real(r8), pointer :: qflx_surf_col            (:)   ! col total surface runoff (mm H2O /s)
      real(r8), pointer :: qflx_drain_col           (:)   ! col sub-surface runoff (mm H2O /s)
+     real(r8), pointer :: qflx_latflow_in_col      (:)   ! col hillslope lateral flow input (mm/s) 
+     real(r8), pointer :: qflx_latflow_out_col     (:)   ! col hillslope lateral flow output (mm/s) 
+     real(r8), pointer :: qdischarge_col           (:)   ! col hillslope discharge (m3/s)
      real(r8), pointer :: qflx_drain_perched_col   (:)   ! col sub-surface runoff from perched wt (mm H2O /s)                                                                                                      
      real(r8), pointer :: qflx_top_soil_col        (:)   ! col net water input into soil from top (mm/s)
      real(r8), pointer :: qflx_floodc_col          (:)   ! col flood water flux at column level
@@ -278,6 +281,15 @@ contains
     call AllocateVar1d(var = this%qflx_drain_perched_col, name = 'qflx_drain_perched_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = BOUNDS_SUBGRID_COLUMN)
+    call AllocateVar1d(var = this%qflx_latflow_in_col, name = 'qflx_latflow_in_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = BOUNDS_SUBGRID_COLUMN)
+    call AllocateVar1d(var = this%qflx_latflow_out_col, name = 'qflx_latflow_out_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = BOUNDS_SUBGRID_COLUMN)
+    call AllocateVar1d(var = this%qdischarge_col, name = 'qdischarge_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = BOUNDS_SUBGRID_COLUMN)
     call AllocateVar1d(var = this%qflx_top_soil_col, name = 'qflx_top_soil_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = BOUNDS_SUBGRID_COLUMN)
@@ -482,6 +494,22 @@ contains
          avgflag='A', &
          long_name=this%info%lname('sub-surface drainage'), &
          ptr_col=this%qflx_drain_col, c2l_scale_type='urbanf')
+
+    this%qflx_latflow_out_col(begc:endc) = spval
+    call hist_addfld1d ( &
+         fname=this%info%fname('QLATFLOWOUT'),  &
+         units='mm/s',  &
+         avgflag='A', &
+         long_name=this%info%lname('hillcol lateral outflow'), &
+         ptr_col=this%qflx_latflow_out_col, c2l_scale_type='urbanf')
+
+    this%qdischarge_col(begc:endc) = spval
+    call hist_addfld1d ( &
+         fname=this%info%fname('QDISCHARGE'),  &
+         units='m3/s',  &
+         avgflag='A', &
+         long_name=this%info%lname('hillslope discharge from column'), &
+         ptr_col=this%qdischarge_col, c2l_scale_type='urbanf')
 
     this%qflx_drain_perched_col(begc:endc) = spval
     call hist_addfld1d ( &
@@ -861,6 +889,9 @@ contains
        if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
           this%qflx_drain_col(c) = 0._r8
           this%qflx_surf_col(c)  = 0._r8
+          this%qflx_latflow_in_col(c)  = 0._r8
+          this%qflx_latflow_out_col(c) = 0._r8
+          this%qdischarge_col(c) = 0._r8
        end if
     end do
 

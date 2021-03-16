@@ -35,6 +35,7 @@ module BalanceCheckMod
   use landunit_varcon    , only : istdlak, istsoil,istcrop,istwet,istice_mec
   use column_varcon      , only : icol_roof, icol_sunwall, icol_shadewall
   use column_varcon      , only : icol_road_perv, icol_road_imperv
+  use clm_varctl         , only : use_hillslope
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -498,6 +499,7 @@ contains
      !-----------------------------------------------------------------------
 
      associate(                                                                   & 
+          forc_solad_col          =>    atm2lnd_inst%forc_solad_col             , & ! Input:  [real(r8) (:,:) ]  direct beam radiation (vis=forc_sols , nir=forc_soll )
           forc_solad              =>    atm2lnd_inst%forc_solad_grc             , & ! Input:  [real(r8) (:,:) ]  direct beam radiation (vis=forc_sols , nir=forc_soll )
           forc_solai              =>    atm2lnd_inst%forc_solai_grc             , & ! Input:  [real(r8) (:,:) ]  diffuse radiation     (vis=forc_solsd, nir=forc_solld)
           forc_rain         =>    wateratm2lnd_inst%forc_rain_downscaled_col    , & ! Input:  [real(r8) (:)   ]  column level rain rate [mm/s]
@@ -796,8 +798,8 @@ contains
                         + qflx_snow_drain(c)  + qflx_sl_top_soil(c)
                 endif
 
-                 if (col%itype(c) == icol_road_perv .or. lun%itype(l) == istsoil .or. &
-                      lun%itype(l) == istcrop .or. lun%itype(l) == istwet .or. &
+                if (col%itype(c) == icol_road_perv .or. lun%itype(l) == istsoil .or. &
+                     lun%itype(l) == istcrop .or. lun%itype(l) == istwet .or. &
                       lun%itype(l) == istice_mec) then
                    snow_sources(c) = (qflx_snow_grnd_col(c) - qflx_snow_h2osfc(c) ) &
                           + frac_sno_eff(c) * (qflx_liq_grnd_col(c) &
@@ -876,8 +878,15 @@ contains
              ! level because of interactions between columns and since a separate check is done
              ! in the urban radiation module
              if (.not. lun%urbpoi(l)) then
-                errsol(p) = fsa(p) + fsr(p) &
-                     - (forc_solad(g,1) + forc_solad(g,2) + forc_solai(g,1) + forc_solai(g,2))
+                ! patch radiation will no longer balance gridcell values 
+!scs: should add a check that columns add to gridcell
+                if(use_hillslope .and. lun%itype(l) == istsoil) then
+                   errsol(p) = fsa(p) + fsr(p) &
+                        - (forc_solad_col(c,1) + forc_solad_col(c,2) + forc_solai(g,1) + forc_solai(g,2))
+                else
+                   errsol(p) = fsa(p) + fsr(p) &
+                        - (forc_solad(g,1) + forc_solad(g,2) + forc_solai(g,1) + forc_solai(g,2))
+                endif
              else
                 errsol(p) = spval
              end if
@@ -941,7 +950,6 @@ contains
                write(iulog,*)'CTSM is stopping'
                call endrun(decomp_index=indexp, clmlevel=namep, msg=errmsg(sourcefile, __LINE__))
            end if
-
        end if
        
        ! Longwave radiation energy balance check
