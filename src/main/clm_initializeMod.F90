@@ -140,9 +140,10 @@ contains
     ! ------------------------------------------------------------------------
 
     call decompInit_lnd(ni, nj, amask)
-    if (present(gindex_ocn)) then
-       call decompInit_ocn(ni, nj, amask, gindex_ocn=gindex_ocn)
-    end if
+!comment out for FATES
+!scs jks    !if (present(gindex_ocn)) then
+!scs jks       !call decompInit_ocn(ni, nj, amask, gindex_ocn=gindex_ocn)
+!scs jks    !end if
     deallocate(amask)
 
     if(use_soil_moisture_streams) call decompInit_lnd3D(ni, nj, nlevsoi)
