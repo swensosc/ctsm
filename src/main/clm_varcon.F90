@@ -44,6 +44,7 @@ module clm_varcon
   ! Initialize physical constants
   !------------------------------------------------------------------
 
+  real(r8), public, parameter :: e_ice = 6.0                        ! soil ice impedance factor
   real(r8), public, parameter :: pc = 0.4                           ! threshold probability
   real(r8), public, parameter :: mu = 0.13889                       ! connectivity exponent 
   real(r8), public, parameter :: secsphr = 3600._r8                 ! Seconds in an hour
