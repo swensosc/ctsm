@@ -1219,7 +1219,7 @@ module CLMFatesInterfaceMod
             !scs jks HH-FATES START
             ! This index "s0" is the number of fates sites that came before the first
             ! site on this clump.
-            s0 = floor(real(bounds_clump%begCohort,r8)/real(fates_maxElementsPerSite,r8)
+            s0 = floor(real(bounds_clump%begCohort,r8)/real(fates_maxElementsPerSite,r8))
             !scs jks END
             allocate(this%fates_restart%restart_map(nc)%site_index(this%fates(nc)%nsites))
             allocate(this%fates_restart%restart_map(nc)%cohort1_index(this%fates(nc)%nsites))            
