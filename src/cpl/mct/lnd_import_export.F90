@@ -352,22 +352,6 @@ contains
 
        call check_for_nans(l2x(:,i), fname, begg)
 
-       ! Check if any output sent to the coupler is NaN
-       if ( any(isnan(l2x(:,i))) )then
-          write(iulog,*) '# of NaNs = ', count(isnan(l2x(:,i)))
-          write(iulog,*) 'Which are NaNs = ', isnan(l2x(:,i))
-          do k = 1, size(l2x(:,i))
-             if ( isnan(l2x(k,i)) )then
-                call shr_string_listGetName( seq_flds_l2x_fields, k, fname )
-                write(iulog,*) trim(fname)
-             end if
-          end do
-          write(iulog,*) 'gridcell index = ', g
-!scs
-          write(iulog,*) 'lon/lat = ', grc%londeg(g), grc%latdeg(g)
-          call endrun( sub//' ERROR: One or more of the output from CLM to the coupler are NaN ' )
-       end if
-
     end do
 
   end subroutine lnd_export
