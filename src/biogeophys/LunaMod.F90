@@ -13,9 +13,9 @@ module LunaMod
   use clm_varcon            , only : rgas, tfrz,spval
   use abortutils            , only : endrun
   use clm_varctl            , only : iulog
-  use clm_varpar            , only : nlevcan, mxpft
+  use clm_varpar            , only : nlevcan
   use decompMod             , only : bounds_type, subgrid_level_patch
-  use pftconMod             , only : pftcon
+  use pftconMod             , only : pftcon, mxpft
   use FrictionvelocityMod   , only : frictionvel_type 
   use atm2lndType           , only : atm2lnd_type
   use CanopyStateType       , only : canopystate_type

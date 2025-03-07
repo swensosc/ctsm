@@ -306,11 +306,12 @@ contains
         p = filter_soilp(fp)
         c = patch%column(p)
         ! For crop veg types
-        if( patch%itype(p) > nc4_grass )then
+        if( pftcon%is_crop(patch%itype(p)) )then
            cropf_col(c) = cropf_col(c) + patch%wtcol(p)
         end if
         ! For natural vegetation (non-crop and non-bare-soil)
-        if( patch%itype(p) >= ndllf_evr_tmp_tree .and. patch%itype(p) <= nc4_grass )then
+        if( .not. (pftcon%is_crop(patch%itype(p)) .or. patch%itype(p)==noveg)) then 
+!check logical        if( patch%itype(p) >= ndllf_evr_tmp_tree .and. patch%itype(p) <= nc4_grass )then
            lfwt(c) = lfwt(c) + patch%wtcol(p)
         end if
      end do
@@ -328,7 +329,7 @@ contains
         ! column-level litter carbon
         ! is available, so we use leaf carbon to estimate the
         ! litter carbon for crop PFTs
-        if( patch%itype(p) > nc4_grass .and. patch%wtcol(p) > 0._r8 .and. leafc_col(c) > 0._r8 )then
+        if( pftcon%is_crop(patch%itype(p)) .and. patch%wtcol(p) > 0._r8 .and. leafc_col(c) > 0._r8 )then
            fuelc_crop(c)=fuelc_crop(c) + (leafc(p) + leafc_storage(p) + &
                 leafc_xfer(p))*patch%wtcol(p)/cropf_col(c)     + &
                 totlitc(c)*leafc(p)/leafc_col(c)*patch%wtcol(p)/cropf_col(c)
@@ -362,7 +363,7 @@ contains
         p = filter_exposedvegp(fp)
         c = patch%column(p)
         ! For non-crop -- natural vegetation and bare-soil
-        if( patch%itype(p)  <  nc3crop .and. cropf_col(c)  <  1.0_r8 )then
+        if( .not. pftcon%is_crop(patch%itype(p)) .and. cropf_col(c)  <  1.0_r8 )then
            btran_col(c) = btran_col(c)+btran2(p)*patch%wtcol(p)
            wtlf(c)      = wtlf(c)+patch%wtcol(p)
         end if
@@ -374,7 +375,7 @@ contains
         g = col%gridcell(c)
 
         ! For non-crop -- natural vegetation and bare-soil
-        if( patch%itype(p)  <  nc3crop .and. cropf_col(c)  <  1.0_r8 )then
+        if( .not. pftcon%is_crop(patch%itype(p)) .and. cropf_col(c)  <  1.0_r8 )then
 
            ! NOTE(wjs, 2016-12-15) These calculations of the fraction of evergreen
            ! and deciduous tropical trees (used to determine if a column is
@@ -521,7 +522,7 @@ contains
         g = col%gridcell(c)
 
         ! For crop
-        if( forc_t(c)  >=  SHR_CONST_TKFRZ .and. patch%itype(p)  >  nc4_grass .and.  &
+        if( forc_t(c)  >=  SHR_CONST_TKFRZ .and. pftcon%is_crop(patch%itype(p)) .and.  &
              kmo == abm_lf(c) .and. &
              burndate(p) >= 999 .and. patch%wtcol(p)  >  0._r8 )then ! catch  crop burn time
 

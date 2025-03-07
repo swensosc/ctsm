@@ -16,7 +16,7 @@ module clm_varpar
   use clm_varctl   , only: soil_layerstruct_userdefined
   use clm_varctl   , only: soil_layerstruct_userdefined_nlevsoi
   use clm_varctl   , only: use_fates, use_cn, use_fates_sp
-
+  
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -50,7 +50,6 @@ module clm_varpar
   integer, public, parameter :: ndst        =   4     ! number of dust size classes (BGC only)
   integer, public, parameter :: dst_src_nbr =   3     ! number of size distns in src soil (BGC only)
   integer, public, parameter :: sz_nbr      = 200     ! number of sub-grid bins in large bin of dust size distribution (BGC only)
-  integer, public, parameter :: mxpft       =  78     ! maximum number of PFT's for any mode;
   integer, public, parameter :: mxsowings   =   1     ! maximum number of crop growing seasons to begin in any year;
   integer, public            :: mxharvests            ! maximum number of crop harvests in any year
                                                       ! (allows for multiple harvests in a calendar year in case harvest occurs near

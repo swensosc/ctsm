@@ -419,7 +419,7 @@ contains
   end subroutine add_column
 
   !-----------------------------------------------------------------------
-  subroutine add_patch(pi, ci, ptype, wtcol)
+  subroutine add_patch(pi, ci, pndx, ptype, wtcol)
     !
     ! !DESCRIPTION:
     ! Add an entry in the patch-level arrays. pi gives the index of the last patch added; the
@@ -433,6 +433,7 @@ contains
     ! !ARGUMENTS:
     integer  , intent(inout) :: pi    ! input value is index of last patch added; output value is index of this newly-added patch
     integer  , intent(in)    :: ci    ! column index on which this patch should be placed (assumes this column has already been created)
+    integer  , intent(in)    :: pndx  ! patch index for vegetated landunits
     integer  , intent(in)    :: ptype ! patch type
     real(r8) , intent(in)    :: wtcol ! weight of the patch relative to the column
     !
@@ -462,7 +463,7 @@ contains
 
     if (lun%itype(li) == istsoil .or. lun%itype(li) == istcrop) then
        lb_offset = 1 - natpft_lb
-       patch%mxy(pi) = ptype + lb_offset
+       patch%mxy(pi) = pndx + lb_offset
     else
        patch%mxy(pi) = ispval
     end if

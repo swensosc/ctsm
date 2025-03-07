@@ -3013,7 +3013,7 @@ contains
                end if
 
                itype = patch%itype(p)
-               if (itype == nc3_arctic_grass .or. pftcon%crop(itype) == 1 .or. &
+               if (itype == nc3_arctic_grass .or. pftcon%is_crop(itype) .or. &
                     itype == nc3_nonarctic_grass .or. itype == nc4_grass) then
                   poros_tiller = 0.3_r8  ! Colmer 2003
                else

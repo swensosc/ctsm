@@ -17,11 +17,10 @@ module cropcalStreamMod
   use clm_varctl       , only : use_crop
   use clm_varctl       , only : use_cropcal_rx_swindows, use_cropcal_rx_cultivar_gdds, use_cropcal_streams
   use clm_varctl       , only : adapt_cropcal_rx_cultivar_gdds
-  use clm_varpar       , only : mxpft
   use clm_varpar       , only : mxsowings
   use perf_mod         , only : t_startf, t_stopf
   use spmdMod          , only : masterproc, mpicom, iam
-  use pftconMod        , only : npcropmin
+  use pftconMod        , only : npcropmin,mxpft
   use CNPhenologyMod  , only : generate_crop_gdds
   !
   ! !PUBLIC TYPES:
@@ -495,7 +494,7 @@ contains
     use CropType        , only : crop_type
     use PatchType       , only : patch
     use clm_time_manager, only : get_curr_days_per_year
-    use pftconMod       , only : pftname
+    use pftconMod       , only : pftcon
     use dshr_methods_mod , only : dshr_fldbun_getfldptr
     !
     ! !ARGUMENTS:
@@ -618,7 +617,7 @@ contains
                    do fp = 1, num_pcropp
                        p = filter_pcropp(fp)
                        if (ivt == patch%itype(p) .and. patch%wtgcell(p) > 0._r8 .and. all(swindow_starts(p,:) < 1)) then
-                           write(iulog, *) '    ',pftname(ivt),'  (',ivt,')'
+                           write(iulog, *) '    ',pftcon%pftname(ivt),'  (',ivt,')'
                            exit  ! Stop looking for patches of this type
                        end if
                    end do
@@ -811,7 +810,7 @@ contains
                  do fp = 1, num_pcropp
                      p = filter_pcropp(fp)
                      if (ivt == patch%itype(p) .and. patch%wtgcell(p) > 0._r8 .and. gdd20_season_starts(p) < 1._r8) then
-                         write(iulog, *) '    ',pftname(ivt),'  (',ivt,')'
+                         write(iulog, *) '    ',pftcon%pftname(ivt),'  (',ivt,')'
                          exit  ! Stop looking for patches of this type
                      end if
                  end do

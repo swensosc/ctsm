@@ -23,7 +23,7 @@ module dynPatchStateUpdaterMod
   use decompMod            , only : bounds_type, bounds_level_proc
   use PatchType            , only : patch
   use ColumnType           , only : col
-  use clm_varpar           , only : mxpft
+  use pftconMod            , only : mxpft
   use abortutils           , only : endrun
   !
   implicit none

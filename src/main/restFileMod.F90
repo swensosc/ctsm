@@ -755,8 +755,8 @@ contains
     ! Add global metadata defining patch types
     !
     ! !USES:
-    use clm_varpar, only : natpft_lb, mxpft, cft_lb, cft_ub
-    use pftconMod , only : pftname_len, pftname
+    use clm_varpar, only : natpft_lb, cft_lb, cft_ub
+    use pftconMod , only : pftname_len, pftcon, mxpft
     !
     ! !ARGUMENTS:
     type(file_desc_t), intent(inout) :: ncid ! local file id
@@ -770,7 +770,7 @@ contains
     !-----------------------------------------------------------------------
     
     do ptype = natpft_lb, mxpft
-       attname = att_prefix // pftname(ptype)
+       attname = att_prefix // pftcon%pftname(ptype)
        call ncd_putatt(ncid, ncd_global, attname, ptype)
     end do
 

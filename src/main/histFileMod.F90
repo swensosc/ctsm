@@ -2612,7 +2612,8 @@ contains
     !
     ! !USES:
     use clm_varpar, only : natpft_lb, natpft_ub
-    use pftconMod , only : pftname_len, pftname
+    use pftconMod , only : pftname_len, pftcon
+
     !
     ! !ARGUMENTS:
     type(file_desc_t), intent(inout) :: lnfid ! local file id
@@ -2628,7 +2629,7 @@ contains
 
     do ptype = natpft_lb, natpft_ub
        ptype_1_indexing = ptype + (1 - natpft_lb)
-       attname = att_prefix // pftname(ptype)
+       attname = att_prefix // pftcon%pftname(patch%itype(ptype))
        call ncd_putatt(lnfid, ncd_global, attname, ptype_1_indexing)
     end do
 
@@ -2642,7 +2643,7 @@ contains
     !
     ! !USES:
     use clm_varpar, only : cft_lb, cft_ub
-    use pftconMod , only : pftname_len, pftname
+    use pftconMod , only : pftname_len, pftcon
     !
     ! !ARGUMENTS:
     type(file_desc_t), intent(inout) :: lnfid ! local file id
@@ -2658,7 +2659,7 @@ contains
 
     do ptype = cft_lb, cft_ub
        ptype_1_indexing = ptype + (1 - cft_lb)
-       attname = att_prefix // pftname(ptype)
+       attname = att_prefix // pftcon%pftname(patch%itype(ptype))
        call ncd_putatt(lnfid, ncd_global, attname, ptype_1_indexing)
     end do
 

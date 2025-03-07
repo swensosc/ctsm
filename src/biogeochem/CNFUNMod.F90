@@ -148,7 +148,7 @@ module CNFUNMod
   !
   ! !USES:
   use ncdio_pio , only : file_desc_t,ncd_io
-  use clm_varpar, only : mxpft
+  use pftconMod, only : mxpft
 
   ! !ARGUMENTS:
   implicit none

@@ -13,8 +13,8 @@ module VOCEmissionMod
   use pftconMod          , only : ndllf_dcd_brl_tree,  nbrdlf_evr_trp_tree
   use pftconMod          , only : nbrdlf_evr_tmp_tree, nbrdlf_dcd_brl_shrub
   use pftconMod          , only : nbrdlf_dcd_trp_tree, nbrdlf_dcd_tmp_tree
-  use pftconMod          , only : nbrdlf_dcd_brl_tree, nbrdlf_evr_shrub
-  use pftconMod          , only : nc3_arctic_grass   , nc3crop
+  use pftconMod          , only : nbrdlf_dcd_brl_tree, nbrdlf_dcd_tmp_shrub, nbrdlf_evr_shrub
+  use pftconMod          , only : nc3_arctic_grass   , nc3_nonarctic_grass, nc3crop, npcropmin
   use pftconMod          , only : nc4_grass,           noveg
   use shr_megan_mod      , only : shr_megan_megcomps_n, shr_megan_megcomp_t, shr_megan_linkedlist
   use shr_megan_mod      , only : shr_megan_mechcomps_n, shr_megan_mechcomps, shr_megan_mapped_emisfctrs
@@ -108,7 +108,7 @@ contains
     use shr_infnan_mod  , only : nan => shr_infnan_nan, assignment(=)
     use shr_megan_mod   , only : shr_megan_factors_file
     use MEGANFactorsMod , only : megan_factors_init, megan_factors_get
-    use clm_varpar      , only : mxpft
+    use pftconMod       , only : mxpft
     !
     ! !ARGUMENTS:
     class(vocemis_type) :: this
@@ -690,21 +690,25 @@ contains
 
     get_map_EF = 0._r8
     
-    if (     ivt_in == ndllf_evr_tmp_tree  &
-         .or.     ivt_in == ndllf_evr_brl_tree) then   !fineleaf evergreen
+!    if (     ivt_in == ndllf_evr_tmp_tree  &
+!         .or.     ivt_in == ndllf_evr_brl_tree) then   !fineleaf evergreen
+    if (any(ivt_in == (/ndllf_evr_tmp_tree,ndllf_evr_brl_tree/))) then   !fineleaf evergreen
        get_map_EF = vocemis_inst%efisop_grc(2,g_in)
     else if (ivt_in == ndllf_dcd_brl_tree) then        !fineleaf deciduous
        get_map_EF = vocemis_inst%efisop_grc(3,g_in)
-    else if (ivt_in >= nbrdlf_evr_trp_tree &
-         .and.    ivt_in <= nbrdlf_dcd_brl_tree) then  !broadleaf trees
+!    else if (ivt_in >= nbrdlf_evr_trp_tree &
+!         .and.    ivt_in <= nbrdlf_dcd_brl_tree) then  !broadleaf trees
+    else if (any(ivt_in == (/nbrdlf_evr_trp_tree,nbrdlf_evr_tmp_tree,nbrdlf_dcd_trp_tree,nbrdlf_dcd_tmp_tree,nbrdlf_dcd_brl_tree/))) then !broadleaf trees
        get_map_EF = vocemis_inst%efisop_grc(1,g_in)
-    else if (ivt_in >= nbrdlf_evr_shrub &
-         .and.    ivt_in <= nbrdlf_dcd_brl_shrub) then !shrubs
+!    else if (ivt_in >= nbrdlf_evr_shrub &
+!         .and.    ivt_in <= nbrdlf_dcd_brl_shrub) then !shrubs
+    else if (any(ivt_in == (/nbrdlf_evr_shrub,nbrdlf_dcd_tmp_shrub,nbrdlf_dcd_brl_shrub/))) then !shrubs
        get_map_EF = vocemis_inst%efisop_grc(4,g_in)
-    else if (ivt_in >= nc3_arctic_grass &
-         .and.    ivt_in <= nc4_grass) then            !grass
+!    else if (ivt_in >= nc3_arctic_grass &
+!         .and.    ivt_in <= nc4_grass) then            !grass
+    else if (any(ivt_in == (/nc3_arctic_grass,nc3_nonarctic_grass,nc4_grass/))) then !grass
        get_map_EF = vocemis_inst%efisop_grc(5,g_in)
-    else if (ivt_in >= nc3crop) then                   !crops
+    else if (ivt_in >= npcropmin) then                   !crops
        get_map_EF = vocemis_inst%efisop_grc(6,g_in)
     end if
 

@@ -26,6 +26,7 @@ module initGridCellsMod
   use initSubgridMod , only : clm_ptrs_compdown, clm_ptrs_check
   use initSubgridMod , only : add_landunit, add_column, add_patch
   use glcBehaviorMod , only : glc_behavior_type
+
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -204,7 +205,7 @@ contains
     ! Initialize vegetated landunit with competition
     !
     ! !USES
-    use clm_instur, only : wt_lunit, wt_nat_patch
+    use clm_instur, only : wt_lunit, wt_nat_patch, veg_subtype_patch
     use subgridMod, only : subgrid_get_info_natveg, natveg_patch_exists
     use clm_varpar, only : natpft_lb, natpft_ub, natpft_size
     !
@@ -267,7 +268,7 @@ contains
                 else
                    p_wt = wt_nat_patch(gi,m)
                 end if
-                call add_patch(pi=pi, ci=ci, ptype=m, wtcol=p_wt)
+                call add_patch(pi=pi, ci=ci, pndx=(m-natpft_lb), ptype=veg_subtype_patch(gi,m), wtcol=p_wt)
                 npatches_added = npatches_added + 1
              end if
           end do
@@ -338,7 +339,7 @@ contains
        
        call add_landunit(li=li, gi=gi, ltype=ltype, wtgcell=wtlunit2gcell)
        call add_column(ci=ci, li=li, ctype=ltype, wtlunit=1.0_r8)
-       call add_patch(pi=pi, ci=ci, ptype=noveg, wtcol=1.0_r8)
+       call add_patch(pi=pi, ci=ci, pndx=0, ptype=noveg, wtcol=1.0_r8)
 
     endif       ! npatches > 0       
 
@@ -410,7 +411,7 @@ contains
           if (col_exists) then
              call add_column(ci=ci, li=li, ctype=ice_class_to_col_itype(m), &
                   wtlunit=wtcol2lunit, type_is_dynamic=type_is_dynamic)
-             call add_patch(pi=pi, ci=ci, ptype=noveg, wtcol=1.0_r8)
+             call add_patch(pi=pi, ci=ci, pndx=0, ptype=noveg, wtcol=1.0_r8)
           endif
        enddo
 
@@ -438,6 +439,7 @@ contains
     use subgridMod      , only : subgrid_get_info_crop, crop_patch_exists
     use clm_varpar      , only : cft_lb, cft_ub
     use clm_varctl      , only : create_crop_landunit
+    use pftconMod       , only : npcropmin
     !
     ! !ARGUMENTS:
     integer , intent(in)    :: ltype             ! landunit type
@@ -492,7 +494,8 @@ contains
           if (crop_patch_exists(gi, cft)) then
              call add_column(ci=ci, li=li, ctype=((istcrop*100) + cft), wtlunit=wt_cft(gi,cft))
              ncols_added = ncols_added + 1
-             call add_patch(pi=pi, ci=ci, ptype=cft, wtcol=1.0_r8)
+             ! adjust cft to param file index
+             call add_patch(pi=pi, ci=ci, pndx=(cft-cft_lb+npcropmin), ptype=(cft - cft_lb + npcropmin), wtcol=1.0_r8)
              npatches_added = npatches_added + 1
           end if
        end do
@@ -595,7 +598,7 @@ contains
 
           call add_column(ci=ci, li=li, ctype=ctype, wtlunit=wtcol2lunit)
 
-          call add_patch(pi=pi, ci=ci, ptype=noveg, wtcol=1.0_r8)
+          call add_patch(pi=pi, ci=ci, pndx=0, ptype=noveg, wtcol=1.0_r8)
 
        end do   ! end of loop through urban columns-pfts
     end if

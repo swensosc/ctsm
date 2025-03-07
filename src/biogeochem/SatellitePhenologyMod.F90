@@ -18,6 +18,7 @@ module SatellitePhenologyMod
   use spmdMod      , only : masterproc, mpicom, iam
   use laiStreamMod , only : lai_init, lai_advance, lai_interp
   use ncdio_pio
+  use pftconMod    , only : pftcon
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -295,14 +296,6 @@ contains
 
     annlai    => canopystate_inst%annlai_patch
 
-    ! Determine necessary indices
-
-    allocate(mlai(bounds%begg:bounds%endg,0:maxveg), stat=ier)
-    if (ier /= 0) then
-       write(iulog,*)subname, 'allocation error '
-       call endrun(msg=errMsg(sourcefile, __LINE__))
-    end if
-
     if (masterproc) then
        write (iulog,*) 'Attempting to read annual vegetation data .....'
     end if
@@ -311,6 +304,14 @@ contains
     call ncd_pio_openfile (ncid, trim(locfn), 0)
     call ncd_inqfdims (ncid, isgrid2d, ni, nj, ns)
 
+    ! Determine necessary indices
+    call ncd_inqdlen(ncid, dimid, npft_i, 'lsmpft')
+    allocate(mlai(bounds%begg:bounds%endg,0:npft_i), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*)subname, 'allocation error '
+       call endrun(msg=errMsg(sourcefile, __LINE__))
+    end if
+    
     if (ldomain%ns /= ns .or. ldomain%ni /= ni .or. ldomain%nj /= nj) then
        write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
        write(iulog,*)trim(subname), 'ldomain%ni,ni,= ',ldomain%ni,ni
@@ -333,7 +334,8 @@ contains
           g =patch%gridcell(p)
           if (patch%itype(p) /= noveg) then     !! vegetated pft
              do l = 0, maxveg
-                if (l == patch%itype(p)) then
+                ! could add in patch level scalar here to modify pft level inputs
+                if (l == pftcon%pft_type(patch%itype(p))) then
                    annlai(k,p) = mlai(g,l)
                 end if
              end do
@@ -391,19 +393,6 @@ contains
     character(len=32) :: subname = 'readMonthlyVegetation'
     !-----------------------------------------------------------------------
 
-    ! Determine necessary indices
-
-    allocate(&
-         mlai(bounds%begg:bounds%endg,0:maxveg), &
-         msai(bounds%begg:bounds%endg,0:maxveg), &
-         mhgtt(bounds%begg:bounds%endg,0:maxveg), &
-         mhgtb(bounds%begg:bounds%endg,0:maxveg), &
-         stat=ier)
-    if (ier /= 0) then
-       write(iulog,*)subname, 'allocation big error '
-       call endrun(msg=errMsg(sourcefile, __LINE__))
-    end if
-
     ! ----------------------------------------------------------------------
     ! Open monthly vegetation file
     ! Read data and convert from gridcell to patch data
@@ -412,6 +401,20 @@ contains
     call getfil(fveg, locfn, 0)
     call ncd_pio_openfile (ncid, trim(locfn), 0)
 
+    ! Determine necessary indices
+    call ncd_inqdlen(ncid, dimid, npft_i, 'lsmpft')
+    allocate(&
+         mlai(bounds%begg:bounds%endg,0:npft_i-1), &
+         msai(bounds%begg:bounds%endg,0:npft_i-1), &
+         mhgtt(bounds%begg:bounds%endg,0:npft_i-1), &
+         mhgtb(bounds%begg:bounds%endg,0:npft_i-1), &
+         stat=ier)
+    if (ier /= 0) then
+       write(iulog,*)subname, 'allocation big error '
+       call endrun(msg=errMsg(sourcefile, __LINE__))
+    end if
+
+    
     do k=1,2   !loop over months and read vegetated data
 
        call ncd_io(ncid=ncid, varname='MONTHLY_LAI', flag='read', data=mlai, dim1name=grlnd, &
@@ -437,8 +440,9 @@ contains
        do p = bounds%begp,bounds%endp
           g =patch%gridcell(p)
           if (patch%itype(p) /= noveg) then     ! vegetated pft
-             do l = 0, maxveg
-                if (l == patch%itype(p)) then
+             do l = 0, npft_i
+                ! could add in patch level scalar here to modify pft level inputs
+                if (l == pftcon%pft_type(patch%itype(p))) then
                    mlai2t(p,k) = mlai(g,l)
                    msai2t(p,k) = msai(g,l)
                    mhvt2t(p,k) = mhgtt(g,l)

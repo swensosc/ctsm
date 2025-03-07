@@ -23,6 +23,7 @@ module clm_instur
   ! landunit for all grid cells, even those without any natural pft)
   ! (second dimension goes natpft_lb:natpft_ub)
   real(r8), pointer :: wt_nat_patch(:,:)   
+  integer , pointer :: veg_subtype_patch(:,:)   
 
   ! for crop landunit, weight of each cft on the landunit (adds to 1.0 on the
   ! landunit for all all grid cells, even  those without any crop)

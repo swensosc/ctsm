@@ -343,7 +343,7 @@ contains
 
 !-----------------------------------------------------------------------
 
-  subroutine surfrd_get_num_patches (lfsurdat, actual_maxsoil_patches, actual_numpft, actual_numcft)
+  subroutine surfrd_get_num_patches (lfsurdat, actual_maxsoil_patches, actual_numpatch, actual_numpft, actual_numcft)
     !
     ! !DESCRIPTION:
     ! Read maxsoil_patches and numcft from the surface dataset
@@ -356,6 +356,7 @@ contains
     integer, intent(out) :: actual_maxsoil_patches  ! value from surface dataset
     integer, intent(out) :: actual_numcft           ! cft value from sfc dataset
     integer, intent(out) :: actual_numpft           ! pft value from sfc dataset
+    integer, intent(out) :: actual_numpatch         ! patch value from sfc dataset
     
     !
     ! !LOCAL VARIABLES:
@@ -391,20 +392,25 @@ contains
     else
        actual_numcft = 0
     end if
-    
+
+    ! Read actual_numpatch and actual_numpft
+    call ncd_inqdlen(ncid, dimid, actual_numpatch, 'nmaxpatch')
+    call ncd_inqdlen(ncid, dimid, actual_numpft, 'natpft')
+    actual_maxsoil_patches = actual_numpatch + actual_numcft
+
     ! Read maxsoil_patches
-    call ncd_inqdlen(ncid, dimid, actual_maxsoil_patches, 'lsmpft')
-    actual_numpft = actual_maxsoil_patches - actual_numcft
+!!$    call ncd_inqdlen(ncid, dimid, actual_maxsoil_patches, 'lsmpft')
+!!$    actual_numpft = actual_maxsoil_patches - actual_numcft
+!!$
+!!$    call ncd_inqdlen(ncid, dimid, check_numpft, 'natpft')
 
-    call ncd_inqdlen(ncid, dimid, check_numpft, 'natpft')
-
-    if(check_numpft.ne.actual_numpft)then
-       write(iulog,*)'the sum of the cftdim and the natpft dim should match the lsmpft dim in the surface file'
-       write(iulog,*)'natpft: ',check_numpft
-       write(iulog,*)'lsmpft: ',actual_maxsoil_patches
-       write(iulog,*)'cft: ',actual_numcft
-       call endrun(msg=errMsg(sourcefile, __LINE__))
-    end if
+!!$    if(check_numpft.ne.actual_numpft)then
+!!$       write(iulog,*)'the sum of the cftdim and the natpft dim should match the lsmpft dim in the surface file'
+!!$       write(iulog,*)'natpft: ',check_numpft
+!!$       write(iulog,*)'lsmpft: ',actual_maxsoil_patches
+!!$       write(iulog,*)'cft: ',actual_numcft
+!!$       call endrun(msg=errMsg(sourcefile, __LINE__))
+!!$    end if
     
     if ( masterproc )then
        write(iulog,*) 'Successfully read maxsoil_patches and numcft from the surface data'
@@ -628,7 +634,7 @@ contains
     !     Handle generic crop types for file format where they are on their own
     !     crop landunit and read in as Crop Function Types.
     ! !USES:
-    use clm_instur      , only : wt_nat_patch, irrig_method
+    use clm_instur      , only : wt_nat_patch, veg_subtype_patch, irrig_method
     use clm_varpar      , only : cft_size, cft_lb, natpft_lb, cft_ub, natpft_ub
     use IrrigationMod   , only : irrig_method_unset
     ! !ARGUMENTS:
@@ -652,14 +658,15 @@ contains
     SHR_ASSERT_ALL_FL((ubound(fert_cft, dim=1) == (/endg/)), sourcefile, __LINE__)
     SHR_ASSERT_ALL_FL((ubound(fert_cft, dim=2) >= (/cftsize+1-cft_lb/)), sourcefile, __LINE__)
     SHR_ASSERT_ALL_FL((ubound(wt_nat_patch)    >= (/endg,natpft_size-1+natpft_lb/)), sourcefile, __LINE__)
+    SHR_ASSERT_ALL_FL((ubound(veg_subtype_patch)>= (/endg,natpft_size-1+natpft_lb/)), sourcefile, __LINE__)
 
     call check_dim_size(ncid, 'cft',    cftsize)
-    call check_dim_size(ncid, 'natpft', natpft_size)
+    call check_dim_size(ncid, 'nmaxpatch', natpft_size)
     
     call ncd_io(ncid=ncid, varname='PCT_CFT', flag='read', data=wt_cft, &
             dim1name=grlnd, readvar=readvar)
     if (.not. readvar) call endrun( msg=' ERROR: PCT_CFT NOT on surfdata file'//errMsg(sourcefile, __LINE__))
-
+    
     if ( cft_size > 0 )then
        call ncd_io(ncid=ncid, varname='CONST_FERTNITRO_CFT', flag='read', data=fert_cft, &
                dim1name=grlnd, readvar=readvar)
@@ -684,13 +691,24 @@ contains
        irrig_method = irrig_method_unset
     end if
 
-    allocate( array2D(begg:endg,1:natpft_size) )
-    call ncd_io(ncid=ncid, varname='PCT_NAT_PFT', flag='read', data=array2D, &
-         dim1name=grlnd, readvar=readvar)
-    if (.not. readvar) call endrun( msg=' ERROR: PCT_NAT_PFT NOT on surfdata file'//errMsg(sourcefile, __LINE__))
-    wt_nat_patch(begg:,natpft_lb:natpft_size-1+natpft_lb) = array2D(begg:,:)
-    deallocate( array2D )
+!!$    allocate( array2D(begg:endg,1:natpft_size) )
+!!$    call ncd_io(ncid=ncid, varname='PCT_NAT_PFT', flag='read', data=array2D, &
+!!$         dim1name=grlnd, readvar=readvar)
+!!$    if (.not. readvar) call endrun( msg=' ERROR: PCT_NAT_PFT NOT on surfdata file'//errMsg(sourcefile, __LINE__))
+!!$    wt_nat_patch(begg:,natpft_lb:natpft_size-1+natpft_lb) = array2D(begg:,:)
+!!$    deallocate( array2D )
  
+    allocate( array2D(begg:endg,1:natpft_size) )
+    call ncd_io(ncid=ncid, varname='pct_nat_patch', flag='read', data=array2D, &
+         dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) call endrun( msg=' ERROR:pct_nat_patch NOT on surfdata file'//errMsg(sourcefile, __LINE__))
+    wt_nat_patch(begg:,natpft_lb:natpft_size-1+natpft_lb) = array2D(begg:,:)
+    
+    call ncd_io(ncid=ncid, varname='nat_patch_type', flag='read', data=array2D, &
+         dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) call endrun( msg=' ERROR:nat_patch_type NOT on surfdata file'//errMsg(sourcefile, __LINE__))
+    veg_subtype_patch(begg:,natpft_lb:natpft_size-1+natpft_lb) = int(array2D(begg:,:))
+    deallocate( array2D )
 
   end subroutine surfrd_cftformat
 

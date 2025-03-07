@@ -109,6 +109,7 @@ module PatchType
 
      ! Non-ED only 
      integer , pointer :: itype    (:) ! patch vegetation 
+     integer , pointer :: ipfttype (:) ! plant functional type
      integer , pointer :: mxy      (:) ! m index for laixy(i,j,m),etc. (undefined for special landunits)
      logical , pointer :: active   (:) ! true=>do computations on this patch
 
@@ -167,6 +168,7 @@ contains
     ! in that routine - which would elimate this problem
 
     allocate(this%itype      (begp:endp)); this%itype      (:) = ispval
+    allocate(this%ipfttype   (begp:endp)); this%ipfttype   (:) = ispval
 
     allocate(this%is_fates   (begp:endp)); this%is_fates   (:) = .false.
 
@@ -193,6 +195,7 @@ contains
     deallocate(this%column  )
     deallocate(this%wtcol   )
     deallocate(this%itype   )
+    deallocate(this%ipfttype)
     deallocate(this%mxy     )
     deallocate(this%active  )
     deallocate(this%is_fates)

@@ -92,7 +92,7 @@ contains
     use ncdio_pio, only : ncd_pio_openfile,ncd_inqdlen
     use pio, only : pio_inq_varid,pio_get_var,file_desc_t,pio_closefile
     use fileutils   , only : getfil
-    use clm_varpar  , only : mxpft
+    use pftconMod   , only : mxpft
     !
     ! !ARGUMENTS:
     character(len=*),intent(in) :: filename ! MEGAN factors input file

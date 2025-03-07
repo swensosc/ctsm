@@ -184,7 +184,7 @@ contains
                cycle
             ! If a crop type and it's the start of the year, htop gets reset to
             ! zero...
-            else if ( is_beg_curr_year() .and. pftcon%crop(patch%itype(p)) /= 0.0_r8 )then
+            else if ( is_beg_curr_year() .and. pftcon%is_crop(patch%itype(p)))then
                z0m(p)    = 0._r8
                displa(p) = 0._r8
             end if

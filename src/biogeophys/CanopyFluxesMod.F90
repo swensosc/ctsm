@@ -15,7 +15,7 @@ module CanopyFluxesMod
   use abortutils            , only : endrun
   use clm_varctl            , only : iulog, use_cn, use_lch4, use_c13, use_c14, use_cndv, use_fates, &
                                      use_luna, use_hydrstress, use_biomass_heat_storage, z0param_method
-  use clm_varpar            , only : nlevgrnd, nlevsno, nlevcan, mxpft
+  use clm_varpar            , only : nlevgrnd, nlevsno, nlevcan
   use pftconMod             , only : pftcon
   use decompMod             , only : bounds_type, subgrid_level_patch
   use ActiveLayerMod        , only : active_layer_type

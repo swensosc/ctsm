@@ -13,7 +13,7 @@ module CNGapMortalityMod
   use decompMod                      , only : bounds_type
   use abortutils                     , only : endrun
   use shr_log_mod                    , only : errMsg => shr_log_errMsg
-  use clm_varpar                     , only : mxpft
+  use pftconMod                      , only : mxpft
   use pftconMod                      , only : pftcon
   use CNDVType                       , only : dgvs_type
   use CNVegCarbonStateType           , only : cnveg_carbonstate_type, spinup_factor_deadwood

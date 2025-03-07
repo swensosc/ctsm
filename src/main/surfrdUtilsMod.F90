@@ -156,7 +156,7 @@ contains
     ! !USES:
     use clm_instur      , only : wt_lunit, wt_nat_patch
     use clm_varpar      , only : cft_size
-    use pftconMod       , only : nc3crop
+    use pftconMod       , only : nc3crop, npcropmin
     use landunit_varcon , only : istsoil, istcrop
     ! !ARGUMENTS:
     implicit none
@@ -169,19 +169,19 @@ contains
     !-----------------------------------------------------------------------
 
     SHR_ASSERT_ALL_FL((ubound(wt_cft) == (/endg, cftsize/)), sourcefile, __LINE__)
-    SHR_ASSERT_ALL_FL((ubound(wt_nat_patch) == (/endg, nc3crop+cftsize-1/)), sourcefile, __LINE__)
+    SHR_ASSERT_ALL_FL((ubound(wt_nat_patch) == (/endg, npcropmin+cftsize-1/)), sourcefile, __LINE__)
     
     do g = begg, endg
        if ( wt_lunit(g,istcrop) > 0.0_r8 )then
           ! Move CFT over to PFT and do weighted average of the crop and soil parts
           wt_nat_patch(g,:) = wt_nat_patch(g,:) * wt_lunit(g,istsoil)
           wt_cft(g,:)       = wt_cft(g,:) * wt_lunit(g,istcrop)
-          wt_nat_patch(g,nc3crop:) = wt_cft(g,:)      ! Add crop CFT's to end of natural veg PFT's
+          wt_nat_patch(g,npcropmin:) = wt_cft(g,:)      ! Add crop CFT's to end of natural veg PFT's
           wt_lunit(g,istsoil) = (wt_lunit(g,istsoil) + wt_lunit(g,istcrop)) ! Add crop landunit to soil landunit
           wt_nat_patch(g,:)   =  wt_nat_patch(g,:) / wt_lunit(g,istsoil)
           wt_lunit(g,istcrop) = 0.0_r8                ! Zero out crop CFT's
        else
-          wt_nat_patch(g,nc3crop:) = 0.0_r8    ! Make sure generic crops are zeroed out
+          wt_nat_patch(g,npcropmin:) = 0.0_r8    ! Make sure generic crops are zeroed out
        end if
     end do
 
@@ -419,7 +419,7 @@ contains
     ! !USES:
     use clm_varctl , only : irrigate, use_crop
     use clm_varpar , only : cft_lb, cft_ub, maxveg
-    use pftconMod  , only : nc3crop, nc3irrig, pftcon
+    use pftconMod  , only : nc3crop, nc3irrig, npcropmin, pftcon
     !
     ! !ARGUMENTS:
 
@@ -473,9 +473,9 @@ contains
              ! plus             irrigated crop pfts from nc3irrig to maxveg,
              !                  stride 2
              ! where stride 2 means "every other"
-             wt_cft(g, nc3crop:maxveg-1:2) = &
-                  wt_cft(g, nc3crop:maxveg-1:2) + wt_cft(g, nc3irrig:maxveg:2)
-             wt_cft(g, nc3irrig:maxveg:2)  = 0._r8
+             wt_cft(g, npcropmin:maxveg-1:2) = &
+                  wt_cft(g, npcropmin:maxveg-1:2) + wt_cft(g, (npcropmin+1):maxveg:2)
+             wt_cft(g, (npcropmin+1):maxveg:2)  = 0._r8
           end do
 
           call check_sums_equal_1(wt_cft, begg, 'wt_cft', subname//': irrigation', sumto=TotalSum)
@@ -494,7 +494,7 @@ contains
        end if
 
        do g = begg, endg
-          do m = 1, maxveg
+          do m = cft_lb, maxveg
              if (m /= pftcon%mergetoclmpft(m)) then
                 wt_cft_to = wt_cft(g, pftcon%mergetoclmpft(m))
                 wt_cft_from = wt_cft(g, m)

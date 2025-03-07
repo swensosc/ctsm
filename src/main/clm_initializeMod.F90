@@ -16,7 +16,7 @@ module clm_initializeMod
   use clm_varctl            , only : iulog
   use clm_varctl            , only : use_lch4, use_cn, use_cndv, use_c13, use_c14, nhillslope
   use clm_varctl            , only : use_soil_moisture_streams
-  use clm_instur            , only : wt_lunit, urban_valid, wt_nat_patch, wt_cft, fert_cft
+  use clm_instur            , only : wt_lunit, urban_valid, wt_nat_patch, veg_subtype_patch, wt_cft, fert_cft
   use clm_instur            , only : irrig_method, wt_glc_mec, topo_glc_mec, pct_lake_max, pct_urban_max, ncolumns_hillslope
   use perf_mod              , only : t_startf, t_stopf
   use readParamsMod         , only : readParameters
@@ -40,9 +40,10 @@ module clm_initializeMod
   public :: initialize1  ! Phase one initialization
   public :: initialize2  ! Phase two initialization
 
-  integer :: actual_numcft  ! numcft from sfc dataset
-  integer :: actual_nlevurb ! nlevurb from sfc dataset
-  integer :: actual_numpft  ! numpft from sfc dataset
+  integer :: actual_numcft   ! numcft from sfc dataset
+  integer :: actual_nlevurb  ! nlevurb from sfc dataset
+  integer :: actual_numpft   ! numpft from sfc dataset
+  integer :: actual_numpatch ! numpatch from sfc dataset
 
 !-----------------------------------------------------------------------
 contains
@@ -101,17 +102,17 @@ contains
     call control_init(dtime)
     call ncd_pio_init()
     call surfrd_compat_check(fsurdat)
-    call surfrd_get_num_patches(fsurdat, actual_maxsoil_patches, actual_numpft, actual_numcft)
+    call surfrd_get_num_patches(fsurdat, actual_maxsoil_patches, actual_numpatch, actual_numpft, actual_numcft)
     call surfrd_get_nlevurb(fsurdat, actual_nlevurb)
 
     ! If fates is on, we override actual_maxsoil_patches. FATES dictates the
     ! number of patches per column.  We still use numcft from the surface
     ! file though...
     if(use_fates) then
-       call CLMFatesGlobals1(actual_numpft, actual_numcft, actual_maxsoil_patches)
+       call CLMFatesGlobals1(actual_numpatch, actual_numcft, actual_maxsoil_patches)
     end if
 
-    call clm_varpar_init(actual_maxsoil_patches, actual_numpft, actual_numcft, actual_nlevurb)
+    call clm_varpar_init(actual_maxsoil_patches, actual_numpatch, actual_numcft, actual_nlevurb)
     call decomp_cascade_par_init( NLFilename )
     call clm_varcon_init( IsSimpleBuildTemp() )
     call landunit_varcon_init()
@@ -249,8 +250,16 @@ contains
     if (use_hillslope) then
        allocate (ncolumns_hillslope  (begg:endg            ))
     endif
-    allocate (wt_nat_patch (begg:endg, surfpft_lb:surfpft_ub ))
+    allocate (wt_nat_patch      (begg:endg, surfpft_lb:surfpft_ub ))
+    allocate (veg_subtype_patch (begg:endg, surfpft_lb:surfpft_ub ))
 
+    if (masterproc) then
+       write(iulog,*) 'after allocate'
+       write(iulog,*) 'aa ', size(wt_cft),shape(wt_cft),begg,endg, cft_lb,cft_ub
+       write(iulog,*) 'aa ', size(veg_subtype_patch),shape(veg_subtype_patch),begg,endg, surfpft_lb,surfpft_ub
+    endif
+
+    
     ! Read list of Patches and their corresponding parameter values
     ! Independent of model resolution, Needs to stay before surfrd_get_data
     call pftcon%Init()
@@ -334,9 +343,20 @@ contains
     ! Some things are kept until the end of initialize2; urban_valid is kept through the
     ! end of the run for error checking, pct_urban_max is kept through the end of the run
     ! for reweighting in subgridWeights.
+    !scs: getting a segfault (?)
+    if (masterproc) then
+       write(iulog,*) 'before deallocate'
+    endif
+    
+    
     deallocate (wt_lunit, wt_cft, wt_glc_mec, pct_lake_max)
     if (use_hillslope)  deallocate (ncolumns_hillslope)
 
+    if (masterproc) then
+       write(iulog,*) 'past deallocate'
+    endif
+    
+    
     ! Determine processor bounds and clumps for this processor
     call get_proc_bounds(bounds_proc)
     nclumps = get_proc_clumps()
@@ -736,6 +756,7 @@ contains
     ! wt_nat_patch was allocated in initialize1, but needed to be kept around through
     ! initialize2 for some consistency checking; now it can be deallocated
     deallocate(wt_nat_patch)
+    deallocate(veg_subtype_patch)
 
     ! Initialise the fates model state structure
     if ( use_fates .and. .not.is_restart() .and. finidat == ' ') then

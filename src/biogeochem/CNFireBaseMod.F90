@@ -474,7 +474,7 @@ contains
    use SoilBiogeochemDecompCascadeConType , only : use_soil_matrixcn
    use CNSharedParamsMod    , only: use_matrixcn
    use clm_varcon           , only: secspday
-   use pftconMod            , only: nc3crop
+   use pftconMod            , only: nc3crop,pftcon
    use dynSubgridControlMod , only: run_has_transient_landcover
    use clm_varpar           , only: nlevdecomp_full, ndecomp_pools, nlevdecomp, i_litr_max, i_met_lit
    use clm_varpar           , only: ileaf,ileaf_st,ileaf_xf,ifroot,ifroot_st,ifroot_xf,&
@@ -775,7 +775,7 @@ contains
         p = filter_soilp(fp)
         c = patch%column(p)
 
-        if( patch%itype(p) < nc3crop .and. cropf_col(c) < 1.0_r8)then
+        if( .not. pftcon%is_crop(patch%itype(p)) .and. cropf_col(c) < 1.0_r8)then
            ! For non-crop (bare-soil and natural vegetation)
            if (transient_landcover) then
               f = (fbac(c)-baf_crop(c))/(1.0_r8-cropf_col(c))

@@ -875,7 +875,8 @@ contains
        l = patch%landunit(p)
        ptype = patch%itype(p)
        if (lun%itype(l) == istsoil .and. (.not.use_fates.or.use_fates_sp) ) then
-          ptype_1indexing = ptype + (1 - natpft_lb)
+!          ptype_1indexing = ptype + (1 - natpft_lb)
+          ptype_1indexing = patch%mxy(p)
           subgrid_weights_diagnostics%pct_nat_pft(g, ptype_1indexing) = patch%wtlunit(p) * 100._r8
        else if (lun%itype(l) == istcrop) then
           ptype_1indexing = ptype + (1 - cft_lb)

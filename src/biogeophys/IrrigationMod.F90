@@ -754,7 +754,7 @@ contains
        g = patch%gridcell(p)
        m = patch%itype(p)
        if (m >= lbound(irrig_method, 2) .and. m <= ubound(irrig_method, 2) &
-            .and. pftcon%irrigated(m) == 1._r8) then
+            .and. pftcon%is_irrigated(m)) then
           this%irrig_method_patch(p) = irrig_method(g,m)
           ! ensure irrig_method is valid; if not set, use drip irrigation
           if(irrig_method(g,m) == irrig_method_unset) then
@@ -1624,7 +1624,7 @@ contains
     character(len=*), parameter :: subname = 'PointNeedsCheckForIrrig'
     !-----------------------------------------------------------------------
     
-    if (pftcon%irrigated(pft_type) == 1._r8 .and. &
+    if (pftcon%is_irrigated(pft_type) .and. &
          elai > this%params%irrig_min_lai) then
        ! see if it's the right time of day to start irrigating:
        seconds_since_irrig_start_time = get_local_time( londeg, starttime=this%params%irrig_start_time, offset=-this%dtime )

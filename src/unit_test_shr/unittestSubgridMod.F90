@@ -394,7 +394,7 @@ contains
   end subroutine unittest_add_column
 
   !-----------------------------------------------------------------------
-  subroutine unittest_add_patch(my_ci, ptype, wtcol)
+  subroutine unittest_add_patch(my_ci, pndx, ptype, wtcol)
     !
     ! !DESCRIPTION:
     ! Add a patch, and make it active. The index of the just-added patch can be obtained
@@ -413,6 +413,7 @@ contains
     !
     ! !ARGUMENTS:
     integer  , intent(in)    :: my_ci   ! column index on which this patch should be placed
+    integer  , intent(in)    :: pndx    ! patch index
     integer  , intent(in)    :: ptype   ! patch type
     real(r8) , intent(in)    :: wtcol   ! weight of the patch relative to the column
     !
@@ -421,7 +422,7 @@ contains
     character(len=*), parameter :: subname = 'unittest_add_patch'
     !-----------------------------------------------------------------------
 
-    call add_patch(pi=pi, ci=my_ci, ptype=ptype, wtcol=wtcol)
+    call add_patch(pi=pi, ci=my_ci, pndx=pndx, ptype=ptype, wtcol=wtcol)
     patch%active(pi) = .true.
 
   end subroutine unittest_add_patch

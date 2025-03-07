@@ -770,7 +770,6 @@ contains
     use clm_varcon       , only : g_to_mg, cm3_to_m3
     use subgridAveMod    , only : p2c
     use PatchType        , only : patch
-    use pftconMod        , only : pftname
     use TillageMod       , only : get_do_tillage
     use TillageMod       , only : get_apply_tillage_multipliers
     !

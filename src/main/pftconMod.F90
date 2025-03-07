@@ -8,7 +8,7 @@ module pftconMod
   ! !USES:
   use shr_kind_mod, only : r8 => shr_kind_r8
   use abortutils  , only : endrun
-  use clm_varpar  , only : mxpft, numrad, ivis, inir, cft_lb, cft_ub, ndecomp_pools
+  use clm_varpar  , only : numrad, ivis, inir, cft_lb, cft_ub, ndecomp_pools, natpft_size
   use clm_varctl  , only : iulog, use_cndv, use_crop, use_grainproduct
   use CropReprPoolsMod, only : repr_structure_min, repr_structure_max
   !
@@ -18,6 +18,7 @@ module pftconMod
   !
   ! Vegetation type constants
   !
+  integer, public :: mxpft                  ! maximum index of patches
   integer, public :: noveg                  ! value for not vegetated 
   integer, public :: ndllf_evr_tmp_tree     ! value for Needleleaf evergreen temperate tree
   integer, public :: ndllf_evr_brl_tree     ! value for Needleleaf evergreen boreal tree
@@ -106,6 +107,8 @@ module pftconMod
   ! at all, as given by the mergetoclmpft list.
   integer, public :: num_cfts_known_to_model
 
+  integer, public, parameter :: pftname_len = 40         ! max length of pftname       
+  
   ! !PUBLIC TYPES:
   type, public :: pftcon_type
 
@@ -113,6 +116,9 @@ module pftconMod
      logical , allocatable :: is_tree       (:)   ! tree or not?
      logical , allocatable :: is_shrub      (:)   ! shrub or not?
      logical , allocatable :: is_grass      (:)   ! grass or not?
+     ! todo: could put phenology type on parameter file
+     character(len=pftname_len), allocatable :: pftname(:)  ! pft subtype description
+     integer , allocatable :: pft_type      (:)   ! pft type
 
      real(r8), allocatable :: dleaf         (:)   ! characteristic leaf dimension (m)
      real(r8), allocatable :: c3psn         (:)   ! photosynthetic pathway: 0. = c4, 1. = c3
@@ -131,8 +137,8 @@ module pftconMod
      real(r8), allocatable :: displar       (:)   ! ratio of displacement height to canopy top height (-)
      real(r8), allocatable :: roota_par     (:)   ! CLM rooting distribution parameter [1/m]
      real(r8), allocatable :: rootb_par     (:)   ! CLM rooting distribution parameter [1/m]
-     real(r8), allocatable :: crop          (:)   ! crop pft: 0. = not crop, 1. = crop pft
-     real(r8), allocatable :: irrigated     (:)   ! irrigated pft: 0. = not, 1. = irrigated
+     logical, allocatable :: is_crop        (:)   ! true if crop pft
+     logical, allocatable :: is_irrigated   (:)   ! true if irrigated pft
      real(r8), allocatable :: smpso         (:)   ! soil water potential at full stomatal opening (mm)
      real(r8), allocatable :: smpsc         (:)   ! soil water potential at full stomatal closure (mm)
      real(r8), allocatable :: fnitr         (:)   ! foliage nitrogen limitation factor (-)
@@ -296,8 +302,8 @@ module pftconMod
 
   type(pftcon_type), public :: pftcon ! pft type constants structure
 
-  integer, public, parameter :: pftname_len = 40         ! max length of pftname       
-  character(len=pftname_len), public :: pftname(0:mxpft) ! PFT description
+!  integer, public, parameter :: pftname_len = 40         ! max length of pftname       
+!  character(len=pftname_len), public :: pftname(0:mxpft) ! PFT description
 
   real(r8), public, parameter :: reinickerp = 1.6_r8     ! parameter in allometric equation
   real(r8), public, parameter :: dwood  = 2.5e5_r8       ! cn wood density (gC/m3); lpj:2.0e5
@@ -319,8 +325,31 @@ contains
   !------------------------------------------------------------------------
   subroutine Init(this)
 
+    use fileutils   , only : getfil
+    use ncdio_pio   , only : ncd_io, ncd_pio_closefile, ncd_pio_openfile, file_desc_t
+    use ncdio_pio   , only : ncd_inqdid, ncd_inqdlen
+    use clm_varctl  , only : paramfile
+    use spmdMod     , only : masterproc
+    !
+    ! !ARGUMENTS:
     class(pftcon_type) :: this
 
+    ! !LOCAL VARIABLES:
+    character(len=256) :: locfn                ! local file name
+    type(file_desc_t)  :: ncid                 ! pio netCDF file id
+    integer            :: dimid                ! netCDF dimension id
+    integer            :: npft                 ! number of pfts on pft-physiology file
+
+    ! mxpft must be set before InitAllocate
+    if (masterproc) then
+       write(iulog,*) 'Attempting to read max patch index'
+    end if
+    call getfil (paramfile, locfn, 0)
+    call ncd_pio_openfile (ncid, trim(locfn), 0)
+    call ncd_inqdid(ncid, 'pft', dimid)
+    call ncd_inqdlen(ncid, dimid, npft)
+    mxpft = npft - 1
+    
     call this%InitAllocate()
     call this%InitRead()
 
@@ -358,6 +387,8 @@ contains
     allocate( this%is_tree       (0:mxpft)); this%is_tree  (:) = .false.
     allocate( this%is_shrub      (0:mxpft)); this%is_shrub (:) = .false.
     allocate( this%is_grass      (0:mxpft)); this%is_grass (:) = .false.
+    allocate( this%pftname       (0:mxpft)); this%pftname  (:) = ''
+    allocate( this%pft_type      (0:mxpft)); this%pft_type (:) = 0
 
     allocate( this%dleaf         (0:mxpft) )       
     allocate( this%c3psn         (0:mxpft) )       
@@ -376,10 +407,10 @@ contains
     allocate( this%displar       (0:mxpft) )
     allocate( this%roota_par     (0:mxpft) )
     allocate( this%rootb_par     (0:mxpft) )
-    allocate( this%crop          (0:mxpft) )
+    allocate( this%is_crop       (0:mxpft) )
     allocate( this%mergetoclmpft (0:mxpft) )
     allocate( this%is_pft_known_to_model  (0:mxpft) )
-    allocate( this%irrigated     (0:mxpft) )   
+    allocate( this%is_irrigated  (0:mxpft) )   
     allocate( this%smpso         (0:mxpft) )       
     allocate( this%smpsc         (0:mxpft) )       
     allocate( this%fnitr         (0:mxpft) )       
@@ -536,8 +567,9 @@ contains
     integer            :: dimid                ! netCDF dimension id
     integer            :: npft                 ! number of pfts on pft-physiology file
     logical            :: readv                ! read variable in or not
+    integer,allocatable:: array_in(:)          ! local array
     character(len=32)  :: subname = 'InitRead' ! subroutine name
-    character(len=pftname_len) :: expected_pftnames(0:mxpft) 
+    character(len=pftname_len) :: expected_pftnames(0:78) 
     character(len=512) :: msg
     !-----------------------------------------------------------------------
     !
@@ -636,22 +668,12 @@ contains
     call ncd_pio_openfile (ncid, trim(locfn), 0)
     call ncd_inqdid(ncid, 'pft', dimid)
     call ncd_inqdlen(ncid, dimid, npft)
-
-    if (npft - 1 /= mxpft) then
-       ! NOTE(bja, 201503) need to subtract 1 because of indexing.
-       ! NOTE(bja, 201503) fail early because one of the io libs
-       ! throws a useless abort error message deep inside the stack
-       ! instead of returning readv so we can get a useful line
-       ! number.
-       write(msg, '(a, i4, a, i4, a)') "ERROR: The number of pfts in the input netcdf file (", &
-            npft, ") does not equal the expected number of pfts (", mxpft, "). "
-       call endrun(msg=trim(msg)//errMsg(sourcefile, __LINE__))
-    end if
-
-    call ncd_io('pftname',pftname, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
+    
+    call ncd_io('pftname',this%pftname, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
-
+    call ncd_io('pftnum',this%pft_type, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
     select case (z0param_method)
     case ('ZengWang2007')
@@ -979,17 +1001,31 @@ contains
     call ncd_io('allconss', this%allconss, 'read', ncid, readvar=readv)  
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
-    call ncd_io('crop', this%crop, 'read', ncid, readvar=readv)  
+    allocate(array_in(0:mxpft))
+    call ncd_io('crop', array_in, 'read', ncid, readvar=readv)  
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
-
+    where(array_in == 1)
+       this%is_crop = .true.
+    elsewhere
+       this%is_crop = .false.
+    end where
+    deallocate(array_in)
+    
     call ncd_io('mergetoclmpft', this%mergetoclmpft, 'read', ncid, readvar=readv)  
     if ( .not. readv ) then
        call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
     end if
 
-    call ncd_io('irrigated', this%irrigated, 'read', ncid, readvar=readv)  
+    allocate(array_in(0:mxpft))
+    call ncd_io('irrigated', array_in, 'read', ncid, readvar=readv)  
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
-
+    where(array_in == 1)
+       this%is_irrigated = .true.
+    elsewhere
+       this%is_irrigated = .false.
+    end where
+    deallocate(array_in)
+    
     call ncd_io('ztopmx', this%ztopmx, 'read', ncid, readvar=readv)  
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
@@ -1145,95 +1181,101 @@ contains
 
     do i = 0, mxpft
        if (.not. use_fates)then
-          if ( trim(adjustl(pftname(i))) /= trim(expected_pftnames(i)) )then
-             write(iulog,*)'pftconrd: pftname is NOT what is expected, name = ', &
-                  trim(pftname(i)), ', expected name = ', trim(expected_pftnames(i))
+          ! do not assume order of names; simply check if name on parameter file is in list of expected names
+          if(.not. any(trim(adjustl(this%pftname(i))) == expected_pftnames)) then
+             write(iulog,*)'pftconrd: pftname is NOT in list of expected pft names, name = ',trim(this%pftname(i))
              call endrun(msg='pftconrd: bad name for pft on paramfile dataset'//errMsg(sourcefile, __LINE__))
           end if
+
+!!$          if ( trim(adjustl(pftname(i))) /= trim(expected_pftnames(i)) )then
+!!$             write(iulog,*)'pftconrd: pftname is NOT what is expected, name = ', &
+!!$                  trim(pftname(i)), ', expected name = ', trim(expected_pftnames(i))
+!!$             call endrun(msg='pftconrd: bad name for pft on paramfile dataset'//errMsg(sourcefile, __LINE__))
+!!$          end if
        end if
 
-       if ( trim(pftname(i)) == 'not_vegetated'                       ) noveg                = i
-       if ( trim(pftname(i)) == 'needleleaf_evergreen_temperate_tree' ) ndllf_evr_tmp_tree   = i
-       if ( trim(pftname(i)) == 'needleleaf_evergreen_boreal_tree'    ) ndllf_evr_brl_tree   = i
-       if ( trim(pftname(i)) == 'needleleaf_deciduous_boreal_tree'    ) ndllf_dcd_brl_tree   = i
-       if ( trim(pftname(i)) == 'broadleaf_evergreen_tropical_tree'   ) nbrdlf_evr_trp_tree  = i
-       if ( trim(pftname(i)) == 'broadleaf_evergreen_temperate_tree'  ) nbrdlf_evr_tmp_tree  = i
-       if ( trim(pftname(i)) == 'broadleaf_deciduous_tropical_tree'   ) nbrdlf_dcd_trp_tree  = i
-       if ( trim(pftname(i)) == 'broadleaf_deciduous_temperate_tree'  ) nbrdlf_dcd_tmp_tree  = i
-       if ( trim(pftname(i)) == 'broadleaf_deciduous_boreal_tree'     ) nbrdlf_dcd_brl_tree  = i
-       if ( trim(pftname(i)) == 'broadleaf_evergreen_shrub'           ) nbrdlf_evr_shrub     = i
-       if ( trim(pftname(i)) == 'broadleaf_deciduous_temperate_shrub' ) nbrdlf_dcd_tmp_shrub = i
-       if ( trim(pftname(i)) == 'broadleaf_deciduous_boreal_shrub'    ) nbrdlf_dcd_brl_shrub = i
-       if ( trim(pftname(i)) == 'c3_arctic_grass'                     ) nc3_arctic_grass     = i
-       if ( trim(pftname(i)) == 'c3_non-arctic_grass'                 ) nc3_nonarctic_grass  = i
-       if ( trim(pftname(i)) == 'c4_grass'                            ) nc4_grass            = i
-       if ( trim(pftname(i)) == 'c3_crop'                             ) nc3crop              = i
-       if ( trim(pftname(i)) == 'c3_irrigated'                        ) nc3irrig             = i
-       if ( trim(pftname(i)) == 'temperate_corn'                      ) ntmp_corn            = i
-       if ( trim(pftname(i)) == 'irrigated_temperate_corn'            ) nirrig_tmp_corn      = i
-       if ( trim(pftname(i)) == 'spring_wheat'                        ) nswheat              = i
-       if ( trim(pftname(i)) == 'irrigated_spring_wheat'              ) nirrig_swheat        = i
-       if ( trim(pftname(i)) == 'winter_wheat'                        ) nwwheat              = i
-       if ( trim(pftname(i)) == 'irrigated_winter_wheat'              ) nirrig_wwheat        = i
-       if ( trim(pftname(i)) == 'temperate_soybean'                   ) ntmp_soybean         = i
-       if ( trim(pftname(i)) == 'irrigated_temperate_soybean'         ) nirrig_tmp_soybean   = i
-       if ( trim(pftname(i)) == 'barley'                              ) nbarley              = i
-       if ( trim(pftname(i)) == 'irrigated_barley'                    ) nirrig_barley        = i
-       if ( trim(pftname(i)) == 'winter_barley'                       ) nwbarley             = i
-       if ( trim(pftname(i)) == 'irrigated_winter_barley'             ) nirrig_wbarley       = i
-       if ( trim(pftname(i)) == 'rye'                                 ) nrye                 = i
-       if ( trim(pftname(i)) == 'irrigated_rye'                       ) nirrig_rye           = i
-       if ( trim(pftname(i)) == 'winter_rye'                          ) nwrye                = i
-       if ( trim(pftname(i)) == 'irrigated_winter_rye'                ) nirrig_wrye          = i
-       if ( trim(pftname(i)) == 'cassava'                             ) ncassava             = i
-       if ( trim(pftname(i)) == 'irrigated_cassava'                   ) nirrig_cassava       = i
-       if ( trim(pftname(i)) == 'citrus'                              ) ncitrus              = i
-       if ( trim(pftname(i)) == 'irrigated_citrus'                    ) nirrig_citrus        = i
-       if ( trim(pftname(i)) == 'cocoa'                               ) ncocoa               = i
-       if ( trim(pftname(i)) == 'irrigated_cocoa'                     ) nirrig_cocoa         = i
-       if ( trim(pftname(i)) == 'coffee'                              ) ncoffee              = i
-       if ( trim(pftname(i)) == 'irrigated_coffee'                    ) nirrig_coffee        = i
-       if ( trim(pftname(i)) == 'cotton'                              ) ncotton              = i
-       if ( trim(pftname(i)) == 'irrigated_cotton'                    ) nirrig_cotton        = i
-       if ( trim(pftname(i)) == 'datepalm'                            ) ndatepalm            = i
-       if ( trim(pftname(i)) == 'irrigated_datepalm'                  ) nirrig_datepalm      = i
-       if ( trim(pftname(i)) == 'foddergrass'                         ) nfoddergrass         = i
-       if ( trim(pftname(i)) == 'irrigated_foddergrass'               ) nirrig_foddergrass   = i
-       if ( trim(pftname(i)) == 'grapes'                              ) ngrapes              = i
-       if ( trim(pftname(i)) == 'irrigated_grapes'                    ) nirrig_grapes        = i
-       if ( trim(pftname(i)) == 'groundnuts'                          ) ngroundnuts          = i
-       if ( trim(pftname(i)) == 'irrigated_groundnuts'                ) nirrig_groundnuts    = i
-       if ( trim(pftname(i)) == 'millet'                              ) nmillet              = i
-       if ( trim(pftname(i)) == 'irrigated_millet'                    ) nirrig_millet        = i
-       if ( trim(pftname(i)) == 'oilpalm'                             ) noilpalm             = i
-       if ( trim(pftname(i)) == 'irrigated_oilpalm'                   ) nirrig_oilpalm       = i
-       if ( trim(pftname(i)) == 'potatoes'                            ) npotatoes            = i
-       if ( trim(pftname(i)) == 'irrigated_potatoes'                  ) nirrig_potatoes      = i
-       if ( trim(pftname(i)) == 'pulses'                              ) npulses              = i
-       if ( trim(pftname(i)) == 'irrigated_pulses'                    ) nirrig_pulses        = i
-       if ( trim(pftname(i)) == 'rapeseed'                            ) nrapeseed            = i
-       if ( trim(pftname(i)) == 'irrigated_rapeseed'                  ) nirrig_rapeseed      = i
-       if ( trim(pftname(i)) == 'rice'                                ) nrice                = i
-       if ( trim(pftname(i)) == 'irrigated_rice'                      ) nirrig_rice          = i
-       if ( trim(pftname(i)) == 'sorghum'                             ) nsorghum             = i
-       if ( trim(pftname(i)) == 'irrigated_sorghum'                   ) nirrig_sorghum       = i
-       if ( trim(pftname(i)) == 'sugarbeet'                           ) nsugarbeet           = i
-       if ( trim(pftname(i)) == 'irrigated_sugarbeet'                 ) nirrig_sugarbeet     = i
-       if ( trim(pftname(i)) == 'sugarcane'                           ) nsugarcane           = i
-       if ( trim(pftname(i)) == 'irrigated_sugarcane'                 ) nirrig_sugarcane     = i
-       if ( trim(pftname(i)) == 'sunflower'                           ) nsunflower           = i
-       if ( trim(pftname(i)) == 'irrigated_sunflower'                 ) nirrig_sunflower     = i
-       if ( trim(pftname(i)) == 'miscanthus'                          ) nmiscanthus          = i
-       if ( trim(pftname(i)) == 'irrigated_miscanthus'                ) nirrig_miscanthus    = i
-       if ( trim(pftname(i)) == 'switchgrass'                         ) nswitchgrass         = i
-       if ( trim(pftname(i)) == 'irrigated_switchgrass'               ) nirrig_switchgrass   = i
-       if ( trim(pftname(i)) == 'tropical_corn'                       ) ntrp_corn            = i
-       if ( trim(pftname(i)) == 'irrigated_tropical_corn'             ) nirrig_trp_corn      = i
-       if ( trim(pftname(i)) == 'tropical_soybean'                    ) ntrp_soybean         = i
-       if ( trim(pftname(i)) == 'irrigated_tropical_soybean'          ) nirrig_trp_soybean   = i
+       if ( trim(this%pftname(i)) == 'not_vegetated'                       ) noveg                = i
+       if ( trim(this%pftname(i)) == 'needleleaf_evergreen_temperate_tree' ) ndllf_evr_tmp_tree   = i
+       if ( trim(this%pftname(i)) == 'needleleaf_evergreen_boreal_tree'    ) ndllf_evr_brl_tree   = i
+       if ( trim(this%pftname(i)) == 'needleleaf_deciduous_boreal_tree'    ) ndllf_dcd_brl_tree   = i
+       if ( trim(this%pftname(i)) == 'broadleaf_evergreen_tropical_tree'   ) nbrdlf_evr_trp_tree  = i
+       if ( trim(this%pftname(i)) == 'broadleaf_evergreen_temperate_tree'  ) nbrdlf_evr_tmp_tree  = i
+       if ( trim(this%pftname(i)) == 'broadleaf_deciduous_tropical_tree'   ) nbrdlf_dcd_trp_tree  = i
+       if ( trim(this%pftname(i)) == 'broadleaf_deciduous_temperate_tree'  ) nbrdlf_dcd_tmp_tree  = i
+       if ( trim(this%pftname(i)) == 'broadleaf_deciduous_boreal_tree'     ) nbrdlf_dcd_brl_tree  = i
+       if ( trim(this%pftname(i)) == 'broadleaf_evergreen_shrub'           ) nbrdlf_evr_shrub     = i
+       if ( trim(this%pftname(i)) == 'broadleaf_deciduous_temperate_shrub' ) nbrdlf_dcd_tmp_shrub = i
+       if ( trim(this%pftname(i)) == 'broadleaf_deciduous_boreal_shrub'    ) nbrdlf_dcd_brl_shrub = i
+       if ( trim(this%pftname(i)) == 'c3_arctic_grass'                     ) nc3_arctic_grass     = i
+       if ( trim(this%pftname(i)) == 'c3_non-arctic_grass'                 ) nc3_nonarctic_grass  = i
+       if ( trim(this%pftname(i)) == 'c4_grass'                            ) nc4_grass            = i
+       if ( trim(this%pftname(i)) == 'c3_crop'                             ) nc3crop              = i
+       if ( trim(this%pftname(i)) == 'c3_irrigated'                        ) nc3irrig             = i
+       if ( trim(this%pftname(i)) == 'temperate_corn'                      ) ntmp_corn            = i
+       if ( trim(this%pftname(i)) == 'irrigated_temperate_corn'            ) nirrig_tmp_corn      = i
+       if ( trim(this%pftname(i)) == 'spring_wheat'                        ) nswheat              = i
+       if ( trim(this%pftname(i)) == 'irrigated_spring_wheat'              ) nirrig_swheat        = i
+       if ( trim(this%pftname(i)) == 'winter_wheat'                        ) nwwheat              = i
+       if ( trim(this%pftname(i)) == 'irrigated_winter_wheat'              ) nirrig_wwheat        = i
+       if ( trim(this%pftname(i)) == 'temperate_soybean'                   ) ntmp_soybean         = i
+       if ( trim(this%pftname(i)) == 'irrigated_temperate_soybean'         ) nirrig_tmp_soybean   = i
+       if ( trim(this%pftname(i)) == 'barley'                              ) nbarley              = i
+       if ( trim(this%pftname(i)) == 'irrigated_barley'                    ) nirrig_barley        = i
+       if ( trim(this%pftname(i)) == 'winter_barley'                       ) nwbarley             = i
+       if ( trim(this%pftname(i)) == 'irrigated_winter_barley'             ) nirrig_wbarley       = i
+       if ( trim(this%pftname(i)) == 'rye'                                 ) nrye                 = i
+       if ( trim(this%pftname(i)) == 'irrigated_rye'                       ) nirrig_rye           = i
+       if ( trim(this%pftname(i)) == 'winter_rye'                          ) nwrye                = i
+       if ( trim(this%pftname(i)) == 'irrigated_winter_rye'                ) nirrig_wrye          = i
+       if ( trim(this%pftname(i)) == 'cassava'                             ) ncassava             = i
+       if ( trim(this%pftname(i)) == 'irrigated_cassava'                   ) nirrig_cassava       = i
+       if ( trim(this%pftname(i)) == 'citrus'                              ) ncitrus              = i
+       if ( trim(this%pftname(i)) == 'irrigated_citrus'                    ) nirrig_citrus        = i
+       if ( trim(this%pftname(i)) == 'cocoa'                               ) ncocoa               = i
+       if ( trim(this%pftname(i)) == 'irrigated_cocoa'                     ) nirrig_cocoa         = i
+       if ( trim(this%pftname(i)) == 'coffee'                              ) ncoffee              = i
+       if ( trim(this%pftname(i)) == 'irrigated_coffee'                    ) nirrig_coffee        = i
+       if ( trim(this%pftname(i)) == 'cotton'                              ) ncotton              = i
+       if ( trim(this%pftname(i)) == 'irrigated_cotton'                    ) nirrig_cotton        = i
+       if ( trim(this%pftname(i)) == 'datepalm'                            ) ndatepalm            = i
+       if ( trim(this%pftname(i)) == 'irrigated_datepalm'                  ) nirrig_datepalm      = i
+       if ( trim(this%pftname(i)) == 'foddergrass'                         ) nfoddergrass         = i
+       if ( trim(this%pftname(i)) == 'irrigated_foddergrass'               ) nirrig_foddergrass   = i
+       if ( trim(this%pftname(i)) == 'grapes'                              ) ngrapes              = i
+       if ( trim(this%pftname(i)) == 'irrigated_grapes'                    ) nirrig_grapes        = i
+       if ( trim(this%pftname(i)) == 'groundnuts'                          ) ngroundnuts          = i
+       if ( trim(this%pftname(i)) == 'irrigated_groundnuts'                ) nirrig_groundnuts    = i
+       if ( trim(this%pftname(i)) == 'millet'                              ) nmillet              = i
+       if ( trim(this%pftname(i)) == 'irrigated_millet'                    ) nirrig_millet        = i
+       if ( trim(this%pftname(i)) == 'oilpalm'                             ) noilpalm             = i
+       if ( trim(this%pftname(i)) == 'irrigated_oilpalm'                   ) nirrig_oilpalm       = i
+       if ( trim(this%pftname(i)) == 'potatoes'                            ) npotatoes            = i
+       if ( trim(this%pftname(i)) == 'irrigated_potatoes'                  ) nirrig_potatoes      = i
+       if ( trim(this%pftname(i)) == 'pulses'                              ) npulses              = i
+       if ( trim(this%pftname(i)) == 'irrigated_pulses'                    ) nirrig_pulses        = i
+       if ( trim(this%pftname(i)) == 'rapeseed'                            ) nrapeseed            = i
+       if ( trim(this%pftname(i)) == 'irrigated_rapeseed'                  ) nirrig_rapeseed      = i
+       if ( trim(this%pftname(i)) == 'rice'                                ) nrice                = i
+       if ( trim(this%pftname(i)) == 'irrigated_rice'                      ) nirrig_rice          = i
+       if ( trim(this%pftname(i)) == 'sorghum'                             ) nsorghum             = i
+       if ( trim(this%pftname(i)) == 'irrigated_sorghum'                   ) nirrig_sorghum       = i
+       if ( trim(this%pftname(i)) == 'sugarbeet'                           ) nsugarbeet           = i
+       if ( trim(this%pftname(i)) == 'irrigated_sugarbeet'                 ) nirrig_sugarbeet     = i
+       if ( trim(this%pftname(i)) == 'sugarcane'                           ) nsugarcane           = i
+       if ( trim(this%pftname(i)) == 'irrigated_sugarcane'                 ) nirrig_sugarcane     = i
+       if ( trim(this%pftname(i)) == 'sunflower'                           ) nsunflower           = i
+       if ( trim(this%pftname(i)) == 'irrigated_sunflower'                 ) nirrig_sunflower     = i
+       if ( trim(this%pftname(i)) == 'miscanthus'                          ) nmiscanthus          = i
+       if ( trim(this%pftname(i)) == 'irrigated_miscanthus'                ) nirrig_miscanthus    = i
+       if ( trim(this%pftname(i)) == 'switchgrass'                         ) nswitchgrass         = i
+       if ( trim(this%pftname(i)) == 'irrigated_switchgrass'               ) nirrig_switchgrass   = i
+       if ( trim(this%pftname(i)) == 'tropical_corn'                       ) ntrp_corn            = i
+       if ( trim(this%pftname(i)) == 'irrigated_tropical_corn'             ) nirrig_trp_corn      = i
+       if ( trim(this%pftname(i)) == 'tropical_soybean'                    ) ntrp_soybean         = i
+       if ( trim(this%pftname(i)) == 'irrigated_tropical_soybean'          ) nirrig_trp_soybean   = i
     end do
 
-    npcropmin            = ntmp_corn            ! first prognostic crop
+    npcropmin            = natpft_size          ! first prognostic crop
     npcropmax            = mxpft                ! last prognostic crop in list
 
     call this%set_is_pft_known_to_model()
@@ -1271,7 +1313,7 @@ contains
        do i = npcropmin, ntrp_soybean, 2
          this%mergetoclmpft(i) = nc3crop
        end do
-       do i = nirrig_tmp_corn, npcropmax, 2
+       do i = (npcropmin+1), npcropmax, 2
          this%mergetoclmpft(i) = nc3irrig
        end do
     end if
@@ -1306,7 +1348,7 @@ contains
           call endrun(msg=' ERROR: npcropmax is NOT the last value'//errMsg(sourcefile, __LINE__))
        end if
        do i = 0, mxpft
-          if ( this%irrigated(i) == 1.0_r8 .and.                              &
+          if ( this%is_irrigated(i) .and.                              &
                (i == nc3irrig               .or.                              &
                 i == nirrig_tmp_corn        .or.                              &
                 i == nirrig_swheat          .or. i == nirrig_wwheat      .or. &
@@ -1331,14 +1373,14 @@ contains
                 i == nirrig_trp_corn        .or.                              &
                 i == nirrig_trp_soybean) )then
              ! correct
-          else if ( this%irrigated(i) == 0.0_r8 )then
+          else if ( .not. this%is_irrigated(i))then
              ! correct
           else
              call endrun(msg=' ERROR: irrigated has wrong values'//errMsg(sourcefile, __LINE__))
           end if
-          if (      this%crop(i) == 1.0_r8 .and. (i >= nc3crop .and. i <= npcropmax) )then
+          if (      this%is_crop(i) .and. (i >= npcropmin .and. i <= npcropmax) )then
              ! correct
-          else if ( this%crop(i) == 0.0_r8 )then
+          else if (.not. this%is_crop(i))then
              ! correct
           else
              call endrun(msg=' ERROR: crop has wrong values'//errMsg(sourcefile, __LINE__))
@@ -1450,6 +1492,8 @@ contains
     deallocate( this%is_tree)
     deallocate( this%is_shrub)
     deallocate( this%is_grass)
+    deallocate( this%pftname)
+    deallocate( this%pft_type)
 
     deallocate( this%dleaf)
     deallocate( this%c3psn)
@@ -1468,10 +1512,10 @@ contains
     deallocate( this%displar)
     deallocate( this%roota_par)
     deallocate( this%rootb_par)
-    deallocate( this%crop)
+    deallocate( this%is_crop)
     deallocate( this%mergetoclmpft)
     deallocate( this%is_pft_known_to_model)
-    deallocate( this%irrigated)
+    deallocate( this%is_irrigated)
     deallocate( this%smpso)
     deallocate( this%smpsc)
     deallocate( this%fnitr)

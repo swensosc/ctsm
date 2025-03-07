@@ -16,11 +16,11 @@ module  PhotosynthesisMod
   use abortutils          , only : endrun
   use clm_varctl          , only : use_c13, use_c14, use_cn, use_cndv, use_fates, use_luna, use_hydrstress
   use clm_varctl          , only : iulog
-  use clm_varpar          , only : nlevcan, nvegwcs, mxpft
+  use clm_varpar          , only : nlevcan, nvegwcs
   use clm_varcon          , only : c14ratio, spval, isecspday
   use decompMod           , only : bounds_type, subgrid_level_patch
   use QuadraticMod        , only : quadratic
-  use pftconMod           , only : pftcon
+  use pftconMod           , only : pftcon,mxpft
   use CIsoAtmTimeseriesMod, only : C14BombSpike, use_c14_bombspike, C13TimeSeries, use_c13_timeseries, nsectors_c14
   use atm2lndType         , only : atm2lnd_type
   use CanopyStateType     , only : canopystate_type
@@ -1377,7 +1377,7 @@ contains
 
     associate(                                                 &
          c3psn      => pftcon%c3psn                          , & ! Input:  photosynthetic pathway: 0. = c4, 1. = c3
-	 crop       => pftcon%crop                           , & ! Input:  crop or not (0 =not crop and 1 = crop)
+	 crop       => pftcon%is_crop                        , & ! Input:  crop or not (0 =not crop and 1 = crop)
          leafcn     => pftcon%leafcn                         , & ! Input:  leaf C:N (gC/gN)
          flnr       => pftcon%flnr                           , & ! Input:  fraction of leaf N in the Rubisco enzyme (gN Rubisco / gN leaf)
          fnitr      => pftcon%fnitr                          , & ! Input:  foliage nitrogen limitation factor (-)
@@ -1718,7 +1718,7 @@ contains
 
             lmr25 = lmr25top * nscaler
 
-            if(use_luna.and.c3flag(p).and.crop(patch%itype(p))== 0) then
+            if(use_luna.and.c3flag(p).and. .not. crop(patch%itype(p))) then
                 if(.not.use_cn)then ! If CN is on, use leaf N to predict respiration (above). Otherwise, use Vcmax term from LUNA.  RF
                   lmr25 = leaf_mr_vcm * photosyns_inst%vcmx25_z_patch(p,iv)
                 endif
@@ -1745,7 +1745,7 @@ contains
 
             else                                     ! day time
 
-               if(use_luna.and.c3flag(p).and.crop(patch%itype(p))== 0)then
+               if(use_luna.and.c3flag(p).and. .not.crop(patch%itype(p)))then
                   vcmax25 = photosyns_inst%vcmx25_z_patch(p,iv)
                   jmax25 = photosyns_inst%jmx25_z_patch(p,iv)
                   tpu25 = params_inst%tpu25ratio * vcmax25 
@@ -2936,7 +2936,7 @@ contains
          root_density => pftcon%root_density                 , & ! Input: 0.31e06_r8 !(g biomass / m3 root) 
          tsai         => canopystate_inst%tsai_patch         , & ! Input:  [real(r8) (:)   ]  patch canopy one-sided stem area index, no burying by snow
          c3psn      => pftcon%c3psn                          , & ! Input:  photosynthetic pathway: 0. = c4, 1. = c3
-         crop       => pftcon%crop                           , & ! Input:  crop or not (0 =not crop and 1 = crop)
+         crop       => pftcon%is_crop                        , & ! Input:  crop or not (0 =not crop and 1 = crop)
          leafcn     => pftcon%leafcn                         , & ! Input:  leaf C:N (gC/gN)
          flnr       => pftcon%flnr                           , & ! Input:  fraction of leaf N in the Rubisco enzyme (gN Rubisco / gN leaf)
          fnitr      => pftcon%fnitr                          , & ! Input:  foliage nitrogen limitation factor (-)
@@ -3332,7 +3332,7 @@ contains
             lmr25_sun = lmr25top * nscaler_sun
             lmr25_sha = lmr25top * nscaler_sha
 
-            if(use_luna.and.c3flag(p).and.crop(patch%itype(p))== 0)then
+            if(use_luna.and.c3flag(p).and. .not.crop(patch%itype(p)))then
                 if(.not.use_cn)then ! If CN is on, use leaf N to predict respiration (above). Otherwise, use Vcmax term from LUNA.  RF
                   lmr25_sun = leaf_mr_vcm * photosyns_inst%vcmx25_z_patch(p,iv)
                   lmr25_sha = leaf_mr_vcm * photosyns_inst%vcmx25_z_patch(p,iv)
@@ -3374,7 +3374,7 @@ contains
 
             else                                     ! day time
 
-               if(use_luna.and.c3flag(p).and.crop(patch%itype(p))== 0)then
+               if(use_luna.and.c3flag(p).and. .not.crop(patch%itype(p)))then
                   vcmax25_sun = photosyns_inst%vcmx25_z_patch(p,iv)
                   vcmax25_sha = photosyns_inst%vcmx25_z_patch(p,iv)
                   jmax25_sun = photosyns_inst%jmx25_z_patch(p,iv)
@@ -3495,7 +3495,7 @@ contains
                aj(p,sun,iv) = 0._r8
                ap(p,sun,iv) = 0._r8
                ag(p,sun,iv) = 0._r8
-               if(crop(patch%itype(p))== 0 .or. .not. modifyphoto_and_lmr_forcrop) then
+               if(.not.crop(patch%itype(p)) .or. .not. modifyphoto_and_lmr_forcrop) then
                   an_sun(p,iv) = ag(p,sun,iv) - bsun(p) * lmr_z_sun(p,iv)
                else
                   an_sun(p,iv) = ag(p,sun,iv) - lmr_z_sun(p,iv)
@@ -3512,7 +3512,7 @@ contains
                aj(p,sha,iv) = 0._r8
                ap(p,sha,iv) = 0._r8
                ag(p,sha,iv) = 0._r8
-               if(crop(patch%itype(p))== 0 .or. .not. modifyphoto_and_lmr_forcrop) then
+               if(.not.crop(patch%itype(p)) .or. .not. modifyphoto_and_lmr_forcrop) then
                   an_sha(p,iv) = ag(p,sha,iv) - bsha(p) * lmr_z_sha(p,iv)
                else
                   an_sha(p,iv) = ag(p,sha,iv) - lmr_z_sha(p,iv)
@@ -3715,7 +3715,7 @@ contains
             psncan_wc_sun = psncan_wc_sun + psn_wc_z_sun(p,iv) * lai_z_sun(p,iv)
             psncan_wj_sun = psncan_wj_sun + psn_wj_z_sun(p,iv) * lai_z_sun(p,iv)
             psncan_wp_sun = psncan_wp_sun + psn_wp_z_sun(p,iv) * lai_z_sun(p,iv)
-            if(crop(patch%itype(p))== 0 .and. modifyphoto_and_lmr_forcrop) then
+            if(.not.crop(patch%itype(p)) .and. modifyphoto_and_lmr_forcrop) then
                lmrcan_sun = lmrcan_sun + lmr_z_sun(p,iv) * lai_z_sun(p,iv) * bsun(p)
             else
                lmrcan_sun = lmrcan_sun + lmr_z_sun(p,iv) * lai_z_sun(p,iv)
@@ -3750,7 +3750,7 @@ contains
             psncan_wc_sha = psncan_wc_sha + psn_wc_z_sha(p,iv) * lai_z_sha(p,iv)
             psncan_wj_sha = psncan_wj_sha + psn_wj_z_sha(p,iv) * lai_z_sha(p,iv)
             psncan_wp_sha = psncan_wp_sha + psn_wp_z_sha(p,iv) * lai_z_sha(p,iv)
-            if(crop(patch%itype(p))== 0 .and. modifyphoto_and_lmr_forcrop) then
+            if(.not.crop(patch%itype(p)) .and. modifyphoto_and_lmr_forcrop) then
                lmrcan_sha = lmrcan_sha + lmr_z_sha(p,iv) * lai_z_sha(p,iv) * bsha(p)
             else
                lmrcan_sha = lmrcan_sha + lmr_z_sha(p,iv) * lai_z_sha(p,iv)

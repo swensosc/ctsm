@@ -106,7 +106,7 @@ contains
     ! !USES:
     use clm_varctl , only : iulog, use_c13, use_c14
     use clm_varctl , only : use_crop
-    use pftconMod  , only : nc3crop
+    use pftconMod  , only : pftcon,nc3crop
     use decompMod  , only : bounds_type
     !
     ! !ARGUMENTS:
@@ -651,7 +651,7 @@ contains
     use clm_varctl , only : use_c13, use_c14, use_nguardrail
     use CNSharedParamsMod, only : use_matrixcn
     use clm_varctl , only : iulog
-    use pftconMod  , only : nc3crop
+    use pftconMod  , only : pftcon,nc3crop
     use decompMod  , only : bounds_type, subgrid_level_patch
     !
     ! !ARGUMENTS:
@@ -691,7 +691,7 @@ contains
     do fp = 1,num_bgc_vegp
        p = filter_bgc_vegp(fp)
 
-       if ( .not. lcroponly .or. (patch%itype(p) >= nc3crop) ) then
+       if ( .not. lcroponly .or. pftcon%is_crop(patch%itype(p)) ) then
           if ( .not. lallowneg .and. ((carbon_patch(p) < cnegcrit) .or. (nitrogen_patch(p) < nnegcrit)) ) then
              write(iulog,*) 'ERROR: Carbon or Nitrogen patch negative = ', carbon_patch(p), nitrogen_patch(p)
              write(iulog,*) 'ERROR: limits = ', cnegcrit, nnegcrit
@@ -745,7 +745,7 @@ contains
     use clm_varctl , only : iulog
     use shr_log_mod, only : errMsg => shr_log_errMsg
     use clm_varctl , only : use_c13, use_c14
-    use pftconMod  , only : nc3crop
+    use pftconMod  , only : nc3crop, pftcon
     use decompMod  , only : bounds_type, subgrid_level_patch
     !
     ! !ARGUMENTS:
@@ -783,7 +783,7 @@ contains
     do fp = 1,num_bgc_vegp
        p = filter_bgc_vegp(fp)
 
-       if ( .not. lcroponly .or. (patch%itype(p) >= nc3crop) ) then
+       if ( .not. lcroponly .or. pftcon%is_crop(patch%itype(p)) ) then
           if ( .not. lallowneg .and. (carbon_patch(p) < cnegcrit) ) then
              write(iulog,*) 'ERROR: Carbon patch negative = ', carbon_patch(p)
              write(iulog,*) 'ERROR: limit = ', cnegcrit

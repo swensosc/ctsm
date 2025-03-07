@@ -12,7 +12,7 @@ module FireEmisFactorsMod
   use abortutils,   only : endrun
   use clm_varctl,   only : iulog
   use clm_varpar,   only : maxveg
-  use pftconMod,    only : nc3crop
+  use pftconMod,    only : nc3crop,npcropmin
 !
   implicit none
   private
@@ -76,8 +76,8 @@ contains
     factors(:maxveg) = comp_factors_table( ndx )%eff(:maxveg)
     ! If fire emissions factor file only includes natural PFT's, but this is a crop case
     ! Copy the generic crop factors to the crop CFT's from generic crop
-    if ( size(factors) > nc3crop )then
-       factors(nc3crop+1:) = comp_factors_table( ndx )%eff(nc3crop)
+    if ( size(factors) > npcropmin )then
+       factors(npcropmin+1:) = comp_factors_table( ndx )%eff(npcropmin)
     end if
     molecwght  = comp_factors_table( ndx )%wght
 
@@ -98,7 +98,7 @@ contains
     use ncdio_pio, only : ncd_pio_openfile,ncd_inqdlen
     use pio, only : pio_inq_varid,pio_get_var,file_desc_t,pio_closefile
     use fileutils   , only : getfil
-    use clm_varpar, only : mxpft
+    use pftconMod, only : mxpft
 !
 ! !ARGUMENTS:
     character(len=*),intent(in) :: filename ! FireEmis factors input file
@@ -128,8 +128,8 @@ contains
     call ncd_inqdlen( ncid, dimid, n_comps, name='Comp_Num')
     call ncd_inqdlen( ncid, dimid, n_pfts, name='PFT_Num')
 
-    if ( (n_pfts < maxveg) .and. (n_pfts < nc3crop) )then
-       write(iulog,*) ' n_pfts = ', n_pfts, ' maxveg = ', maxveg, ' nat_pft = ', nc3crop
+    if ( (n_pfts < maxveg) .and. (n_pfts < npcropmin) )then
+       write(iulog,*) ' n_pfts = ', n_pfts, ' maxveg = ', maxveg, ' nat_pft = ', npcropmin
        call endrun('Number of PFTs on the fire emissions file is less than the number of natural PFTs from the surface dataset')
     end if
     if ( n_pfts > mxpft )then
