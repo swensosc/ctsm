@@ -118,6 +118,8 @@ module pftconMod
      logical , allocatable :: is_grass      (:)   ! grass or not?
      ! todo: could put phenology type on parameter file
      character(len=pftname_len), allocatable :: pftname(:)  ! pft subtype description
+     integer , allocatable :: patch_lai_scalar (:)   ! patch lai scalar
+
      integer , allocatable :: pft_type      (:)   ! pft type
 
      real(r8), allocatable :: dleaf         (:)   ! characteristic leaf dimension (m)
@@ -138,6 +140,7 @@ module pftconMod
      real(r8), allocatable :: roota_par     (:)   ! CLM rooting distribution parameter [1/m]
      real(r8), allocatable :: rootb_par     (:)   ! CLM rooting distribution parameter [1/m]
      logical, allocatable :: is_crop        (:)   ! true if crop pft
+     logical, allocatable :: is_crop_prognostic    (:)   ! true if prognostic crop pft
      logical, allocatable :: is_irrigated   (:)   ! true if irrigated pft
      real(r8), allocatable :: smpso         (:)   ! soil water potential at full stomatal opening (mm)
      real(r8), allocatable :: smpsc         (:)   ! soil water potential at full stomatal closure (mm)
@@ -297,6 +300,7 @@ module pftconMod
      procedure, private :: InitRead
      procedure, private :: set_is_pft_known_to_model   ! Set is_pft_known_to_model based on mergetoclmpft
      procedure, private :: set_num_cfts_known_to_model ! Set the module-level variable, num_cfts_known_to_model
+     procedure, private :: set_is_crop_prognostic      ! Set flag for prognostic crops
 
   end type pftcon_type
 
@@ -388,6 +392,7 @@ contains
     allocate( this%is_shrub      (0:mxpft)); this%is_shrub (:) = .false.
     allocate( this%is_grass      (0:mxpft)); this%is_grass (:) = .false.
     allocate( this%pftname       (0:mxpft)); this%pftname  (:) = ''
+    allocate( this%patch_lai_scalar(0:mxpft)); this%patch_lai_scalar (:) = 1
     allocate( this%pft_type      (0:mxpft)); this%pft_type (:) = 0
 
     allocate( this%dleaf         (0:mxpft) )       
@@ -408,6 +413,7 @@ contains
     allocate( this%roota_par     (0:mxpft) )
     allocate( this%rootb_par     (0:mxpft) )
     allocate( this%is_crop       (0:mxpft) )
+    allocate( this%is_crop_prognostic   (0:mxpft) )
     allocate( this%mergetoclmpft (0:mxpft) )
     allocate( this%is_pft_known_to_model  (0:mxpft) )
     allocate( this%is_irrigated  (0:mxpft) )   
@@ -672,6 +678,8 @@ contains
     call ncd_io('pftname',this%pftname, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
+    call ncd_io('patch_lai_scalar',this%patch_lai_scalar, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
     call ncd_io('pftnum',this%pft_type, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
@@ -1275,11 +1283,12 @@ contains
        if ( trim(this%pftname(i)) == 'irrigated_tropical_soybean'          ) nirrig_trp_soybean   = i
     end do
 
-    npcropmin            = natpft_size          ! first prognostic crop
+    npcropmin            = natpft_size+2        ! first prognostic crop (skip 2 generic crops)
     npcropmax            = mxpft                ! last prognostic crop in list
 
     call this%set_is_pft_known_to_model()
     call this%set_num_cfts_known_to_model()
+    call this%set_is_crop_prognostic()
 
     ! Set vegetation family identifier (tree/shrub/grass)
     do m = 0,mxpft 
@@ -1310,12 +1319,23 @@ contains
     ! When crop is not on, merge prognostic crop types into either the rainfed
     ! or irrigated C3 generic crop types
     if ( .not. use_crop )then
-       do i = npcropmin, ntrp_soybean, 2
-         this%mergetoclmpft(i) = nc3crop
-       end do
-       do i = (npcropmin+1), npcropmax, 2
-         this%mergetoclmpft(i) = nc3irrig
-       end do
+!!$       do i = npcropmin, npcropmax, 2
+!!$         this%mergetoclmpft(i) = nc3crop
+!!$       end do
+!!$       do i = (npcropmin+1), npcropmax, 2
+!!$         this%mergetoclmpft(i) = nc3irrig
+!!$       end do
+       do m = 0,mxpft 
+       ! this includes generic crops, but that should be ok
+          if ( this%is_crop(m) ) then
+             if ( this%is_irrigated(m) ) then
+                this%mergetoclmpft(m) = nc3irrig
+             else
+                this%mergetoclmpft(m) = nc3crop
+             endif
+          endif
+       enddo
+       
     end if
 
     ! BUG(wjs, 2022-03-02, ESCOMP/CTSM#1667) Add this to the param file and read it along
@@ -1473,6 +1493,38 @@ contains
   end subroutine set_num_cfts_known_to_model
 
   !-----------------------------------------------------------------------
+  subroutine set_is_crop_prognostic(this)
+    !
+    ! !DESCRIPTION:
+    ! Set flag for prognostic crop
+    !
+    ! !USES:
+    !
+    ! !ARGUMENTS:
+    class(pftcon_type), intent(inout) :: this
+    !
+    ! !LOCAL VARIABLES:
+    integer :: m
+
+    character(len=*), parameter :: subname = 'set_is_crop_prognostic'
+    !-----------------------------------------------------------------------
+
+    this%is_crop_prognostic(:) = .false.
+
+    do m = 1, mxpft
+       if ( this%is_crop(m) ) then
+          ! generic crops
+          if ( m == nc3irrig .or. m == nc3crop) then
+             ! skip
+          else
+             this%is_crop_prognostic(m) = .true.
+          endif
+       endif
+    enddo
+
+  end subroutine set_is_crop_prognostic
+
+  !-----------------------------------------------------------------------
   subroutine Clean(this)
     !
     ! !DESCRIPTION:
@@ -1493,6 +1545,7 @@ contains
     deallocate( this%is_shrub)
     deallocate( this%is_grass)
     deallocate( this%pftname)
+    deallocate( this%patch_lai_scalar)
     deallocate( this%pft_type)
 
     deallocate( this%dleaf)
@@ -1513,6 +1566,7 @@ contains
     deallocate( this%roota_par)
     deallocate( this%rootb_par)
     deallocate( this%is_crop)
+    deallocate( this%is_crop_prognostic)
     deallocate( this%mergetoclmpft)
     deallocate( this%is_pft_known_to_model)
     deallocate( this%is_irrigated)

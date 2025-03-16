@@ -336,7 +336,7 @@ contains
              do l = 0, maxveg
                 ! could add in patch level scalar here to modify pft level inputs
                 if (l == pftcon%pft_type(patch%itype(p))) then
-                   annlai(k,p) = mlai(g,l)
+                   annlai(k,p) = mlai(g,l)*pftcon%patch_lai_scalar(patch%itype(p))
                 end if
              end do
           else                       !! non-vegetated pft
@@ -443,7 +443,7 @@ contains
              do l = 0, npft_i
                 ! could add in patch level scalar here to modify pft level inputs
                 if (l == pftcon%pft_type(patch%itype(p))) then
-                   mlai2t(p,k) = mlai(g,l)
+                   mlai2t(p,k) = mlai(g,l)*pftcon%patch_lai_scalar(patch%itype(p))
                    msai2t(p,k) = msai(g,l)
                    mhvt2t(p,k) = mhgtt(g,l)
                    mhvb2t(p,k) = mhgtb(g,l)
