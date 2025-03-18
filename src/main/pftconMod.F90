@@ -1364,18 +1364,19 @@ contains
     ! with the other parameters. Until then, this block of code needs to be done after
     ! npcropmin is set so that we have the correct value of npcropmin below.
     do k = repr_structure_min, repr_structure_max
-       do i = 0, npcropmin-1
-          this%repr_structure_harvfrac(i,k) = 0._r8
-       end do
-       do i = npcropmin, mxpft
-          ! For now, until we read this from the param file, set it based on
-          ! use_grainproduct. This will facilitate software testing: this keeps the
-          ! operation of the structure pools similar to that of the grain pools for a
-          ! given setup.
-          if (use_grainproduct) then
-             this%repr_structure_harvfrac(i,k) = 1._r8
-          else
+       do i = 0, mxpft
+          if ( this%is_crop_prognostic(i) ) then
              this%repr_structure_harvfrac(i,k) = 0._r8
+          else
+             ! For now, until we read this from the param file, set it based on
+             ! use_grainproduct. This will facilitate software testing: this keeps the
+             ! operation of the structure pools similar to that of the grain pools for a
+             ! given setup.
+             if (use_grainproduct) then
+                this%repr_structure_harvfrac(i,k) = 1._r8
+             else
+                this%repr_structure_harvfrac(i,k) = 0._r8
+             end if
           end if
        end do
     end do
@@ -1427,19 +1428,19 @@ contains
           else
              call endrun(msg=' ERROR: crop has wrong values'//errMsg(sourcefile, __LINE__))
           end if
-          if ( (i /= noveg) .and. (i < npcropmin) .and. &
+          if ( (i /= noveg) .and. (.not. this%is_crop_prognostic(i)) .and. &
                abs(this%pconv(i) + this%pprod10(i) + this%pprod100(i) - 1.0_r8) > 1.e-7_r8 )then
              call endrun(msg=' ERROR: pconv+pprod10+pprod100 do NOT sum to one.'//errMsg(sourcefile, __LINE__))
           end if
           if ( this%pprodharv10(i) > 1.0_r8 .or. this%pprodharv10(i) < 0.0_r8 )then
              call endrun(msg=' ERROR: pprodharv10 outside of range.'//errMsg(sourcefile, __LINE__))
           end if
-          if (i < npcropmin .and. this%biofuel_harvfrac(i) /= 0._r8) then
+          if ((.not. this%is_crop_prognostic(i)) .and. this%biofuel_harvfrac(i) /= 0._r8) then
              call endrun(msg=' ERROR: biofuel_harvfrac non-zero for a non-prognostic crop PFT.'//&
                   errMsg(sourcefile, __LINE__))
           end if
           do k = repr_structure_min, repr_structure_max
-             if (i < npcropmin .and. this%repr_structure_harvfrac(i,k) /= 0._r8) then
+             if ((.not. this%is_crop_prognostic(i)) .and. this%repr_structure_harvfrac(i,k) /= 0._r8) then
                 call endrun(msg=' ERROR: repr_structure_harvfrac non-zero for a non-prognostic crop PFT.'//&
                      errMsg(sourcefile, __LINE__))
              end if
