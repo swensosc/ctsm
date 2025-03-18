@@ -8,7 +8,7 @@ module pftconMod
   ! !USES:
   use shr_kind_mod, only : r8 => shr_kind_r8
   use abortutils  , only : endrun
-  use clm_varpar  , only : numrad, ivis, inir, cft_lb, cft_ub, ndecomp_pools, natpft_size
+  use clm_varpar  , only : numrad, ivis, inir, ndecomp_pools, natpft_size
   use clm_varctl  , only : iulog, use_cndv, use_crop, use_grainproduct
   use CropReprPoolsMod, only : repr_structure_min, repr_structure_max
   !
@@ -19,6 +19,9 @@ module pftconMod
   ! Vegetation type constants
   !
   integer, public :: mxpft                  ! maximum index of patches
+  integer, public :: cft_size               ! number of crop types
+  integer, public :: cft_lb                 ! lower bound of crop types
+  integer, public :: cft_ub                 ! upper bound of crop types
   integer, public :: noveg                  ! value for not vegetated 
   integer, public :: ndllf_evr_tmp_tree     ! value for Needleleaf evergreen temperate tree
   integer, public :: ndllf_evr_brl_tree     ! value for Needleleaf evergreen boreal tree
@@ -329,11 +332,13 @@ contains
   !------------------------------------------------------------------------
   subroutine Init(this)
 
+    use shr_log_mod , only : errMsg => shr_log_errMsg
     use fileutils   , only : getfil
     use ncdio_pio   , only : ncd_io, ncd_pio_closefile, ncd_pio_openfile, file_desc_t
     use ncdio_pio   , only : ncd_inqdid, ncd_inqdlen
-    use clm_varctl  , only : paramfile
+    use clm_varctl  , only : paramfile, use_fates
     use spmdMod     , only : masterproc
+
     !
     ! !ARGUMENTS:
     class(pftcon_type) :: this
@@ -343,6 +348,8 @@ contains
     type(file_desc_t)  :: ncid                 ! pio netCDF file id
     integer            :: dimid                ! netCDF dimension id
     integer            :: npft                 ! number of pfts on pft-physiology file
+    logical            :: readv                ! read variable in or not
+    real(r8), allocatable :: iarray(:)
 
     ! mxpft must be set before InitAllocate
     if (masterproc) then
@@ -353,6 +360,23 @@ contains
     call ncd_inqdid(ncid, 'pft', dimid)
     call ncd_inqdlen(ncid, dimid, npft)
     mxpft = npft - 1
+
+    ! Determine number of crops on parameter file
+    if (.not. use_fates) then
+       
+       allocate(iarray(npft))
+       call ncd_io('crop',iarray, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
+       if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
+       cft_size = int(sum(iarray))
+       deallocate(iarray)
+
+       cft_lb   = npft - cft_size
+       cft_ub   = cft_lb + cft_size - 1
+    else
+       cft_size = 0
+       cft_lb   = 0
+       cft_ub   = 0
+    endif
     
     call this%InitAllocate()
     call this%InitRead()
@@ -413,9 +437,9 @@ contains
     allocate( this%roota_par     (0:mxpft) )
     allocate( this%rootb_par     (0:mxpft) )
     allocate( this%is_crop       (0:mxpft) )
-    allocate( this%is_crop_prognostic   (0:mxpft) )
+    allocate( this%is_crop_prognostic    (0:mxpft) )
     allocate( this%mergetoclmpft (0:mxpft) )
-    allocate( this%is_pft_known_to_model  (0:mxpft) )
+    allocate( this%is_pft_known_to_model (0:mxpft) )
     allocate( this%is_irrigated  (0:mxpft) )   
     allocate( this%smpso         (0:mxpft) )       
     allocate( this%smpsc         (0:mxpft) )       
@@ -567,8 +591,7 @@ contains
     !
     ! !LOCAL VARIABLES:
     character(len=256) :: locfn                ! local file name
-    integer            :: i,n,m,k              ! loop indices
-    integer            :: ier                  ! error code
+    integer            :: i,m,k              ! loop indices
     type(file_desc_t)  :: ncid                 ! pio netCDF file id
     integer            :: dimid                ! netCDF dimension id
     integer            :: npft                 ! number of pfts on pft-physiology file
@@ -576,7 +599,6 @@ contains
     integer,allocatable:: array_in(:)          ! local array
     character(len=32)  :: subname = 'InitRead' ! subroutine name
     character(len=pftname_len) :: expected_pftnames(0:78) 
-    character(len=512) :: msg
     !-----------------------------------------------------------------------
     !
     ! Expected PFT names: The names expected on the paramfile file and the order they are expected to be in.

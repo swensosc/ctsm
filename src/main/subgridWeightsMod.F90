@@ -154,7 +154,8 @@ contains
     !
     ! !USES:
     use landunit_varcon, only : max_lunit
-    use clm_varpar     , only : maxpatch_glc, natpft_size, cft_size
+    use clm_varpar     , only : maxpatch_glc, natpft_size
+    use pftconMod      , only : cft_size
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
     use decompMod      , only : bounds_level_proc
     use histFileMod    , only : hist_addfld2d
@@ -849,7 +850,8 @@ contains
     !
     ! !USES:
     use landunit_varcon, only : istsoil, istcrop
-    use clm_varpar, only : natpft_lb, cft_lb
+    use clm_varpar, only : natpft_lb
+    use pftconMod , only : cft_lb
     !
     ! !ARGUMENTS:
     type(bounds_type), intent(in) :: bounds

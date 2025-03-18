@@ -755,8 +755,8 @@ contains
     ! Add global metadata defining patch types
     !
     ! !USES:
-    use clm_varpar, only : natpft_lb, cft_lb, cft_ub
-    use pftconMod , only : pftname_len, pftcon, mxpft
+    use clm_varpar, only : natpft_lb
+    use pftconMod , only : pftname_len, pftcon, mxpft, cft_lb, cft_ub
     !
     ! !ARGUMENTS:
     type(file_desc_t), intent(inout) :: ncid ! local file id

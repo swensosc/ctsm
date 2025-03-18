@@ -138,23 +138,15 @@ module clm_varpar
   integer, public :: natpft_lb          ! In PATCH arrays, lower bound of Patches on the natural veg landunit (i.e., bare ground index)
   integer, public :: natpft_ub          ! In PATCH arrays, upper bound of Patches on the natural veg landunit
   integer, public :: natpft_size        ! Number of Patches on natural veg landunit (including bare ground)
+  integer, public :: natpft_type_size   ! Number of PFT types (including bare ground)
 
   integer, public :: surfpft_lb         ! Lower bound of PFTs in the surface file
                                         ! synonymous with natpft_lb for non-fates and fates-sp
   integer, public :: surfpft_ub         ! Upper bound of PFTs in the surface file
-                                        ! synonymous with natpft_ub for non-fates and fates-sp
+  integer, public :: surfcft_lb         ! Lower bound of CFTs in the surface file
+  integer, public :: surfcft_ub         ! Upper bound of CFTs in the surface file
 
-  
-  ! The following variables pertain to arrays of all PFTs - e.g., those dimensioned (g,
-  ! pft_index). These include unused CFTs that are merged into other CFTs. Thus, these
-  ! variables do NOT give the actual number of CFTs on the crop landunit - that number
-  ! will generally be less because CLM does not simulate all crop types (some crop types
-  ! are merged into other types).
-  integer, public :: cft_lb             ! In arrays of PFTs, lower bound of PFTs on the crop landunit
-  integer, public :: cft_ub             ! In arrays of PFTs, upper bound of PFTs on the crop landunit
-  integer, public :: cft_size           ! Number of PFTs on crop landunit in arrays of PFTs
-
-  integer, public :: maxpatch_glc    ! max number of elevation classes
+    integer, public :: maxpatch_glc    ! max number of elevation classes
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   public clm_varpar_init          ! set parameters
@@ -164,7 +156,7 @@ module clm_varpar
 contains
 
   !------------------------------------------------------------------------------
-  subroutine clm_varpar_init(actual_maxsoil_patches, surf_numpft, surf_numcft, actual_nlevurb)
+  subroutine clm_varpar_init(actual_maxsoil_patches, surf_numpft, surf_numpatch, surf_numcft, actual_nlevurb)
     !
     ! !DESCRIPTION:
     ! Initialize module variables 
@@ -175,7 +167,8 @@ contains
                                                    ! This value comes either from the
                                                    ! surface dataset (non-fates) or 
                                                    ! from fates (via its parameter file)
-    integer, intent(in) :: surf_numpft             ! Number of PFTs in the surf dataset
+    integer, intent(in) :: surf_numpft             ! Number of PFT types in the surf dataset
+    integer, intent(in) :: surf_numpatch           ! Number of Patches in the surf dataset
     integer, intent(in) :: surf_numcft             ! Number of CFTs in the surf dataset
     integer, intent(in) :: actual_nlevurb          ! nlevurb from surface dataset
     !
@@ -207,25 +200,25 @@ contains
 
     if (create_crop_landunit) then
        
-       natpft_size = surf_numpft    ! includes bare ground + natveg pfts
-       cft_size    = surf_numcft
+       natpft_type_size = surf_numpft  ! includes bare ground + natveg pfts
+       natpft_size = surf_numpatch     ! includes bare ground + natveg pfts
        natpft_lb   = 0
        natpft_ub   = natpft_lb + natpft_size - 1
-       cft_lb      = natpft_ub + 1
-       cft_ub      = cft_lb + cft_size - 1
        surfpft_lb  = natpft_lb
        surfpft_ub  = natpft_ub
+       surfcft_lb  = 1
+       surfcft_ub  = surf_numcft
        
     else ! only true when FATES is active
        
+       natpft_type_size = surf_numpft
        natpft_size = maxsoil_patches
-       cft_size    = 0
        natpft_lb   = 0
        natpft_ub   = natpft_lb + natpft_size - 1
-       cft_lb      = 0
-       cft_ub      = 0
        surfpft_lb  = 0
        surfpft_ub  = surf_numpft+surf_numcft-1
+       surfcft_lb  = 1
+       surfcft_ub  = surf_numcft
        
     end if
        

@@ -52,7 +52,7 @@ contains
     ! samples that bound the initial model date)
     !
     ! !USES:
-    use clm_varpar     , only : cft_size
+    use pftconMod      , only : cft_size
     use ncdio_pio      , only : check_dim_size
     use dynTimeInfoMod , only : YEAR_POSITION_START_OF_TIMESTEP
     !
@@ -124,7 +124,7 @@ contains
     ! !USES:
     use CropType          , only : crop_type
     use landunit_varcon   , only : istcrop
-    use clm_varpar        , only : cft_size, cft_lb, cft_ub
+    use pftconMod         , only : cft_size, cft_lb, cft_ub
     use clm_varctl        , only : use_crop
     use surfrdUtilsMod    , only : collapse_crop_types, collapse_crop_var
     use subgridWeightsMod , only : set_landunit_weight
@@ -161,10 +161,10 @@ contains
     !
     ! Assumes that memory has been allocated for all CFTs on the crop landunit, and that
     ! each crop is on its own column.
-    allocate(wtcft_cur(bounds%begg:bounds%endg, cft_lb:cft_ub))
+    allocate(wtcft_cur(bounds%begg:bounds%endg, 1:cft_size))
     call wtcft%get_current_data(wtcft_cur)
 
-    allocate(fertcft_cur(bounds%begg:bounds%endg, cft_lb:cft_ub))
+    allocate(fertcft_cur(bounds%begg:bounds%endg, 1:cft_size))
     call fertcft%get_current_data(fertcft_cur)
 
     ! Call collapse_crop_types:

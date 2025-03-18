@@ -2340,7 +2340,8 @@ contains
     !
     ! !USES:
     use clm_varpar      , only : nlevgrnd, nlevsno, nlevlak, nlevurb, nlevmaxurbgrnd, numrad, nlevcan, nvegwcs,nlevsoi
-    use clm_varpar      , only : natpft_size, cft_size, maxpatch_glc, nlevdecomp_full, mxsowings, mxharvests
+    use clm_varpar      , only : natpft_size, maxpatch_glc, nlevdecomp_full, mxsowings, mxharvests
+    use pftconMod       , only : cft_size
     use landunit_varcon , only : max_lunit
     use clm_varctl      , only : caseid, ctitle, fsurdat, finidat, paramfile
     use clm_varctl      , only : hillslope_file
@@ -2642,8 +2643,7 @@ contains
     ! Add global metadata defining natpft types
     !
     ! !USES:
-    use clm_varpar, only : cft_lb, cft_ub
-    use pftconMod , only : pftname_len, pftcon
+    use pftconMod , only : pftname_len, pftcon, cft_lb, cft_ub
     !
     ! !ARGUMENTS:
     type(file_desc_t), intent(inout) :: lnfid ! local file id
@@ -5532,7 +5532,8 @@ contains
     !
     ! !USES:
     use clm_varpar      , only : nlevgrnd, nlevsno, nlevlak, numrad, nlevdecomp_full, nlevcan, nvegwcs,nlevsoi
-    use clm_varpar      , only : natpft_size, cft_size, maxpatch_glc, mxsowings, mxharvests
+    use clm_varpar      , only : natpft_size, maxpatch_glc, mxsowings, mxharvests
+    use pftconMod       , only : cft_size    
     use landunit_varcon , only : max_lunit
     !
     ! !ARGUMENTS:

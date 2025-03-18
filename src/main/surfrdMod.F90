@@ -635,8 +635,9 @@ contains
     !     crop landunit and read in as Crop Function Types.
     ! !USES:
     use clm_instur      , only : wt_nat_patch, veg_subtype_patch, irrig_method
-    use clm_varpar      , only : cft_size, cft_lb, natpft_lb, cft_ub, natpft_ub
+    use clm_varpar      , only : natpft_lb, natpft_ub
     use IrrigationMod   , only : irrig_method_unset
+    use pftconMod       , only : cft_size
     ! !ARGUMENTS:
     implicit none
     type(file_desc_t), intent(inout) :: ncid         ! netcdf id
@@ -651,12 +652,12 @@ contains
     real(r8),pointer :: array2D(:,:)                 ! local array
     character(len=32) :: subname = 'surfrd_cftformat'! subroutine name
 !-----------------------------------------------------------------------
-    SHR_ASSERT_ALL_FL((lbound(wt_cft)          == (/begg, cft_lb/)), sourcefile, __LINE__)
+    SHR_ASSERT_ALL_FL((lbound(wt_cft)          == (/begg, 1/)), sourcefile, __LINE__)
     SHR_ASSERT_ALL_FL((ubound(wt_cft, dim=1)   == (/endg/)), sourcefile, __LINE__)
-    SHR_ASSERT_ALL_FL((ubound(wt_cft, dim=2)   >= (/cftsize+1-cft_lb/)), sourcefile, __LINE__)
-    SHR_ASSERT_ALL_FL((lbound(fert_cft)        == (/begg, cft_lb/)), sourcefile, __LINE__)
+    SHR_ASSERT_ALL_FL((ubound(wt_cft, dim=2)   >= (/cftsize/)), sourcefile, __LINE__)
+    SHR_ASSERT_ALL_FL((lbound(fert_cft)        == (/begg, 1/)), sourcefile, __LINE__)
     SHR_ASSERT_ALL_FL((ubound(fert_cft, dim=1) == (/endg/)), sourcefile, __LINE__)
-    SHR_ASSERT_ALL_FL((ubound(fert_cft, dim=2) >= (/cftsize+1-cft_lb/)), sourcefile, __LINE__)
+    SHR_ASSERT_ALL_FL((ubound(fert_cft, dim=2) >= (/cftsize/)), sourcefile, __LINE__)
     SHR_ASSERT_ALL_FL((ubound(wt_nat_patch)    >= (/endg,natpft_size-1+natpft_lb/)), sourcefile, __LINE__)
     SHR_ASSERT_ALL_FL((ubound(veg_subtype_patch)>= (/endg,natpft_size-1+natpft_lb/)), sourcefile, __LINE__)
 
@@ -666,7 +667,7 @@ contains
     call ncd_io(ncid=ncid, varname='PCT_CFT', flag='read', data=wt_cft, &
             dim1name=grlnd, readvar=readvar)
     if (.not. readvar) call endrun( msg=' ERROR: PCT_CFT NOT on surfdata file'//errMsg(sourcefile, __LINE__))
-    
+
     if ( cft_size > 0 )then
        call ncd_io(ncid=ncid, varname='CONST_FERTNITRO_CFT', flag='read', data=fert_cft, &
                dim1name=grlnd, readvar=readvar)
@@ -726,7 +727,8 @@ contains
     
     ! !USES:
     use clm_instur      , only : wt_nat_patch, wt_lunit
-    use clm_varpar      , only : cft_size, surfpft_lb, surfpft_ub
+    use clm_varpar      , only : surfpft_lb, surfpft_ub
+    use pftconMod       , only : cft_size
     use landunit_varcon , only : istsoil, istcrop
     
     ! !ARGUMENTS:
@@ -822,7 +824,7 @@ contains
     !     natural vegetation landunit.
     ! !USES:
     use clm_instur      , only : fert_cft, irrig_method, wt_nat_patch
-    use clm_varpar      , only : natpft_size, cft_size, natpft_lb
+    use clm_varpar      , only : natpft_size, natpft_lb
     use IrrigationMod   , only : irrig_method_unset
     ! !ARGUMENTS:
     implicit none
@@ -885,9 +887,10 @@ contains
     !
     ! !USES:
     use clm_varctl      , only : create_crop_landunit, use_fates, n_dom_pfts, use_hillslope
-    use clm_varpar      , only : natpft_lb, natpft_ub, natpft_size, cft_size, cft_lb, cft_ub
+    use clm_varpar      , only : natpft_lb, natpft_ub, natpft_size
     use clm_varpar      , only : surfpft_lb, surfpft_ub
     use clm_instur      , only : wt_lunit, wt_nat_patch, wt_cft, fert_cft
+    use pftconMod       , only : cft_size
     use landunit_varcon , only : istsoil, istcrop
     use surfrdUtilsMod  , only : convert_cft_to_pft
 
@@ -929,7 +932,6 @@ contains
     wt_lunit(begg:endg,istcrop) = arrayl(begg:endg)
 
     deallocate(arrayl)
-
     
     ! Check the file format for CFT's and handle accordingly
     if ( actual_numcft > 0 ) then
@@ -938,11 +940,12 @@ contains
           !        Generic crop in file and in model
           !        Full crop in file, generic crop in model
           cftsize = actual_numcft
-          allocate(array2DCFT (begg:endg,cft_lb:cftsize-1+cft_lb))
-          allocate(array2DFERT(begg:endg,cft_lb:cftsize-1+cft_lb))
+          allocate(array2DCFT (begg:endg,1:cftsize))
+          allocate(array2DFERT(begg:endg,1:cftsize))
           call surfrd_cftformat( ncid, begg, endg, array2DCFT, array2DFERT, cftsize, natpft_size )
-          wt_cft  (begg:,cft_lb:) = array2DCFT (begg:,cft_lb:cft_ub)
-          fert_cft(begg:,cft_lb:) = array2DFERT(begg:,cft_lb:cft_ub)
+
+          wt_cft  (begg:,1:) = array2DCFT (begg:,1:cftsize)
+          fert_cft(begg:,1:) = array2DFERT(begg:,1:cftsize)
           deallocate(array2DCFT)
           deallocate(array2DFERT)
        else if ( .not. create_crop_landunit )then
@@ -954,8 +957,8 @@ contains
 
              call surfrd_wtfates( ncid, begg, endg )
              ! Set the weighting on the crop patches to zero
-             fert_cft(begg:,cft_lb:cft_ub) = 0.0_r8
-             wt_cft(begg:,cft_lb:cft_ub) = 0.0_r8
+             fert_cft(begg:,1:cftsize) = 0.0_r8
+             wt_cft(begg:,1:cftsize) = 0.0_r8
 
           else
              call endrun( msg=' ERROR: New format surface datasets require create_crop_landunit TRUE'//errMsg(sourcefile, __LINE__))

@@ -112,7 +112,7 @@ contains
        call CLMFatesGlobals1(actual_numpatch, actual_numcft, actual_maxsoil_patches)
     end if
 
-    call clm_varpar_init(actual_maxsoil_patches, actual_numpatch, actual_numcft, actual_nlevurb)
+    call clm_varpar_init(actual_maxsoil_patches, actual_numpft, actual_numpatch, actual_numcft, actual_nlevurb)
     call decomp_cascade_par_init( NLFilename )
     call clm_varcon_init( IsSimpleBuildTemp() )
     call landunit_varcon_init()
@@ -134,10 +134,11 @@ contains
     ! !USES:
     use ESMF                          , only : ESMF_Time
     use clm_varcon                    , only : spval
-    use clm_varpar                    , only : natpft_lb, natpft_ub, cft_lb, cft_ub, maxpatch_glc
+    use clm_varpar                    , only : natpft_lb, natpft_ub
     use clm_varpar                    , only : surfpft_lb, surfpft_ub
+    use clm_varpar                    , only : surfcft_lb, surfcft_ub
     use clm_varpar                    , only : nlevsno
-    use clm_varpar                    , only : natpft_size,cft_size
+    use clm_varpar                    , only : natpft_size, maxpatch_glc
     use clm_varctl                    , only : fsurdat, hillslope_file
     use clm_varctl                    , only : finidat, finidat_interp_source, finidat_interp_dest
     use clm_varctl                    , only : use_cn, use_fates, use_fates_luh
@@ -146,7 +147,7 @@ contains
     use clm_varorb                    , only : eccen, mvelpp, lambm0, obliqr
     use clm_varctl                    , only : use_cropcal_streams
     use landunit_varcon               , only : landunit_varcon_init, max_lunit, numurbl
-    use pftconMod                     , only : pftcon
+    use pftconMod                     , only : pftcon, cft_size
     use decompInitMod                 , only : decompInit_clumps, decompInit_glcp
     use domainMod                     , only : domain_check, ldomain, domain_init
     use surfrdMod                     , only : surfrd_get_data
@@ -240,9 +241,9 @@ contains
     ! Allocate surface grid dynamic memory (just gridcell bounds dependent)
     allocate (wt_lunit     (begg:endg, max_lunit           ))
     allocate (urban_valid  (begg:endg                      ))
-    allocate (wt_cft       (begg:endg, cft_lb:cft_ub       ))
-    allocate (fert_cft     (begg:endg, cft_lb:cft_ub       ))
-    allocate (irrig_method (begg:endg, cft_lb:cft_ub       ))
+    allocate (wt_cft       (begg:endg, surfcft_lb:surfcft_ub ))
+    allocate (fert_cft     (begg:endg, surfcft_lb:surfcft_ub ))
+    allocate (irrig_method (begg:endg, surfcft_lb:surfcft_ub ))
     allocate (wt_glc_mec   (begg:endg, maxpatch_glc     ))
     allocate (topo_glc_mec (begg:endg, maxpatch_glc     ))
     allocate (pct_lake_max (begg:endg                      ))
@@ -255,7 +256,7 @@ contains
 
     if (masterproc) then
        write(iulog,*) 'after allocate'
-       write(iulog,*) 'aa ', size(wt_cft),shape(wt_cft),begg,endg, cft_lb,cft_ub
+       write(iulog,*) 'aa ', size(wt_cft),shape(wt_cft),begg,endg,surfcft_lb,surfcft_ub
        write(iulog,*) 'aa ', size(veg_subtype_patch),shape(veg_subtype_patch),begg,endg, surfpft_lb,surfpft_ub
     endif
 

@@ -490,7 +490,7 @@ contains
     ! Obtain properties for crop landunit in this grid cell
     !
     ! !USES:
-    use clm_varpar, only : cft_lb, cft_ub
+    use pftconmod            , only : cft_lb, cft_ub
     !
     ! !ARGUMENTS:
     integer, intent(in)  :: gi        ! grid cell index
@@ -532,9 +532,8 @@ contains
     ! create_crop_landunit is .false.
     !
     ! !USES:
-    use clm_varpar           , only : cft_lb, cft_ub
     use clm_varctl           , only : create_crop_landunit
-    use pftconmod            , only : pftcon
+    use pftconmod            , only : pftcon, cft_lb, cft_ub
     use dynSubgridControlMod , only : get_do_transient_crops
     !
     ! !ARGUMENTS:
@@ -565,7 +564,7 @@ contains
           ! For a run without transient crops, only allocate memory for crops that are
           ! actually present in this run. (This will require running init_interp when
           ! changing between a transient crop run and a non-transient run.)
-          if (wt_lunit(gi, istcrop) > 0.0_r8 .and. wt_cft(gi, cft) > 0.0_r8) then
+          if (wt_lunit(gi, istcrop) > 0.0_r8 .and. wt_cft(gi, (cft-cft_lb+1)) > 0.0_r8) then
              exists = .true.
           else
              exists = .false.

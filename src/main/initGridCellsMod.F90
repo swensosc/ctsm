@@ -437,9 +437,9 @@ contains
     use clm_instur      , only : wt_lunit, wt_cft
     use landunit_varcon , only : istcrop, istsoil
     use subgridMod      , only : subgrid_get_info_crop, crop_patch_exists
-    use clm_varpar      , only : cft_lb, cft_ub
+    use clm_varpar      , only : natpft_type_size
     use clm_varctl      , only : create_crop_landunit
-    use pftconMod       , only : npcropmin
+    use pftconMod       , only : npcropmin, cft_lb, cft_ub
     !
     ! !ARGUMENTS:
     integer , intent(in)    :: ltype             ! landunit type
@@ -492,10 +492,10 @@ contains
 
        do cft = cft_lb, cft_ub
           if (crop_patch_exists(gi, cft)) then
-             call add_column(ci=ci, li=li, ctype=((istcrop*100) + cft), wtlunit=wt_cft(gi,cft))
+             call add_column(ci=ci, li=li, ctype=((istcrop*100) + cft), wtlunit=wt_cft(gi,(cft-cft_lb+1)))
              ncols_added = ncols_added + 1
-             ! adjust cft to param file index
-             call add_patch(pi=pi, ci=ci, pndx=(cft-cft_lb+npcropmin), ptype=(cft - cft_lb + npcropmin), wtcol=1.0_r8)
+             ! adjust pndx to surface data index for lai/sai/height
+             call add_patch(pi=pi, ci=ci, pndx=(cft-cft_lb+natpft_type_size), ptype=cft, wtcol=1.0_r8)
              npatches_added = npatches_added + 1
           end if
        end do

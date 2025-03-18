@@ -155,8 +155,7 @@ contains
     !        a crop landunit, and put them on the vegetated landunit.
     ! !USES:
     use clm_instur      , only : wt_lunit, wt_nat_patch
-    use clm_varpar      , only : cft_size
-    use pftconMod       , only : nc3crop, npcropmin
+    use pftconMod       , only : nc3crop, npcropmin, cft_size
     use landunit_varcon , only : istsoil, istcrop
     ! !ARGUMENTS:
     implicit none
@@ -374,8 +373,7 @@ contains
     ! -
     !
     ! !USES:
-    use clm_varpar, only: cft_lb, cft_ub
-    use pftconMod, only: pftcon
+    use pftconMod, only: pftcon, cft_lb, cft_ub
     !
     ! !ARGUMENTS:
     ! Use begg and endg rather than 'bounds', because bounds may not be
@@ -384,8 +382,8 @@ contains
     integer, intent(in) :: endg  ! Ending grid cell index
     integer, intent(in) :: cft_size  ! CFT size
 
-    ! Crop variable dimensioned [g, cft_lb:cft_lb+cft_size-1] modified in-place
-    real(r8), intent(inout) :: crop_var(begg:, cft_lb:)
+    ! Crop variable dimensioned [g, 1:cft_size] modified in-place
+    real(r8), intent(inout) :: crop_var(begg:, 1:)
 
     ! !LOCAL VARIABLES:
     integer :: g  ! gridcell index
@@ -396,12 +394,12 @@ contains
 
     if (cft_size > 0) then  ! The opposite applies only if use_fates
 
-       SHR_ASSERT_ALL_FL((ubound(crop_var) == (/endg, cft_lb+cft_size-1/)), sourcefile, __LINE__)
+       SHR_ASSERT_ALL_FL((ubound(crop_var) == (/endg, cft_size/)), sourcefile, __LINE__)
 
        do g = begg, endg
           do m = cft_lb, cft_ub
              if (.not. pftcon%is_pft_known_to_model(m)) then
-                crop_var(g,m) = 0._r8
+                crop_var(g,(m-cft_lb+1)) = 0._r8
              end if
           end do
        end do
@@ -418,8 +416,8 @@ contains
     !
     ! !USES:
     use clm_varctl , only : irrigate, use_crop
-    use clm_varpar , only : cft_lb, cft_ub, maxveg
-    use pftconMod  , only : nc3crop, nc3irrig, npcropmin, pftcon
+    use clm_varpar , only : maxveg
+    use pftconMod  , only : nc3crop, nc3irrig, npcropmin, pftcon, cft_lb, cft_ub
     !
     ! !ARGUMENTS:
 
@@ -431,15 +429,15 @@ contains
 
     ! Weight and fertilizer of each CFT in each grid cell; dimensioned [g, cft_lb:cft_lb+cftsize-1]
     ! This array is modified in-place
-    real(r8), intent(inout) :: wt_cft(begg:, cft_lb:)
-    real(r8), intent(inout) :: fert_cft(begg:, cft_lb:)
+    real(r8), intent(inout) :: wt_cft(begg:, 1:)
+    real(r8), intent(inout) :: fert_cft(begg:, 1:)
     real(r8), intent(in), optional :: sumto(begg:endg)  ! What weights should sum to per grid-cell
 
     logical, intent(in) :: verbose  ! If true, print some extra information
     !
     ! !LOCAL VARIABLES:
     integer :: g
-    integer :: m
+    integer :: m, m2
     real(r8) :: wt_cft_to
     real(r8) :: wt_cft_from
     real(r8) :: wt_cft_merge
@@ -450,8 +448,8 @@ contains
 
     if (cftsize > 0) then  ! The opposite applies only if use_fates
 
-       SHR_ASSERT_ALL_FL((ubound(wt_cft)   == (/endg, cft_lb+cftsize-1/)), sourcefile, __LINE__)
-       SHR_ASSERT_ALL_FL((ubound(fert_cft) == (/endg, cft_lb+cftsize-1/)), sourcefile, __LINE__)
+       SHR_ASSERT_ALL_FL((ubound(wt_cft)   == (/endg, cftsize/)), sourcefile, __LINE__)
+       SHR_ASSERT_ALL_FL((ubound(fert_cft) == (/endg, cftsize/)), sourcefile, __LINE__)
 
        TotalSum = 1.0_r8
        if ( present(sumto) ) TotalSum = sumto  ! e.g. sumto(g) may = 100._r8
@@ -473,9 +471,9 @@ contains
              ! plus             irrigated crop pfts from nc3irrig to maxveg,
              !                  stride 2
              ! where stride 2 means "every other"
-             wt_cft(g, npcropmin:maxveg-1:2) = &
-                  wt_cft(g, npcropmin:maxveg-1:2) + wt_cft(g, (npcropmin+1):maxveg:2)
-             wt_cft(g, (npcropmin+1):maxveg:2)  = 0._r8
+             wt_cft(g, 1:cftsize-1:2) = &
+                  wt_cft(g, 1:cftsize-1:2) + wt_cft(g, 2:cftsize:2)
+             wt_cft(g, 2:cftsize:2)  = 0._r8
           end do
 
           call check_sums_equal_1(wt_cft, begg, 'wt_cft', subname//': irrigation', sumto=TotalSum)
@@ -494,16 +492,21 @@ contains
        end if
 
        do g = begg, endg
-          do m = cft_lb, maxveg
-             if (m /= pftcon%mergetoclmpft(m)) then
-                wt_cft_to = wt_cft(g, pftcon%mergetoclmpft(m))
-                wt_cft_from = wt_cft(g, m)
+          do m = cft_lb, cft_ub
+             m2 = pftcon%mergetoclmpft(m)
+             if (m /= m2) then
+                wt_cft_to = wt_cft(g, (m2-cft_lb+1))
+                wt_cft_from = wt_cft(g, (m-cft_lb+1))
                 wt_cft_merge = wt_cft_to + wt_cft_from
-                wt_cft(g, pftcon%mergetoclmpft(m)) = wt_cft_merge
-                wt_cft(g, m) = 0._r8
+                wt_cft(g, (m2-cft_lb+1)) = wt_cft_merge
+                wt_cft(g, (m-cft_lb+1)) = 0._r8
                 if (wt_cft_merge > 0._r8) then
-                   fert_cft(g,pftcon%mergetoclmpft(m)) = (wt_cft_to * fert_cft(g,pftcon%mergetoclmpft(m)) + &
-                                                         wt_cft_from * fert_cft(g,m)) / wt_cft_merge
+                   fert_cft(g,(m2-cft_lb+1)) = (wt_cft_to * fert_cft(g,(m2-cft_lb+1)) + &
+                        wt_cft_from * fert_cft(g,(m-cft_lb+1))) / wt_cft_merge
+                   fert_cft(g, (m-cft_lb+1)) = 0._r8
+                else
+                   fert_cft(g,(m-cft_lb+1)) = 0._r8
+                   fert_cft(g,(m2-cft_lb+1)) = 0._r8
                 end if
                 pftcon%is_pft_known_to_model(m) = .false.
              end if
@@ -513,11 +516,11 @@ contains
 
        call check_sums_equal_1(wt_cft, begg, 'wt_cft', subname//': mergetoclmpft', sumto=TotalSum)
        if ( .not. use_crop )then
-          if ( any(wt_cft(begg:endg,cft_ub+1:) /= 0.0_r8) )then
+          if ( any(wt_cft(begg:endg,3:) /= 0.0_r8) )then
              call endrun(msg = subname//' without prognostic crops (use_crop=F) and weight of CFT of prognostic crop'//&
                   ' is not zero as expected' // errMsg(sourcefile, __LINE__))
           end if
-          if ( any(fert_cft(begg:endg,cft_ub+1:) /= 0.0_r8) )then
+          if ( any(fert_cft(begg:endg,3:) /= 0.0_r8) )then
              call endrun(msg = subname//' without prognostic crops (use_crop=F) and fertilizer of prognostic crop'// &
                   ' is not zero as expected' // errMsg(sourcefile, __LINE__))
           end if
