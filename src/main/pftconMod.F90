@@ -701,7 +701,7 @@ contains
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
     call ncd_io('patch_lai_scalar',this%patch_lai_scalar, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
+    if ( .not. readv .and. masterproc) write(iulog,*) 'patch_lai_scalar not on file; setting all values to 1'
     call ncd_io('pftnum',this%pft_type, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(sourcefile, __LINE__))
 
@@ -1305,7 +1305,7 @@ contains
        if ( trim(this%pftname(i)) == 'irrigated_tropical_soybean'          ) nirrig_trp_soybean   = i
     end do
 
-    npcropmin            = natpft_size+2        ! first prognostic crop (skip 2 generic crops)
+    npcropmin            = cft_lb+2        ! first prognostic crop (skip 2 generic crops)
     npcropmax            = mxpft                ! last prognostic crop in list
 
     call this%set_is_pft_known_to_model()
@@ -1420,7 +1420,7 @@ contains
           else
              call endrun(msg=' ERROR: irrigated has wrong values'//errMsg(sourcefile, __LINE__))
           end if
-          if (      this%is_crop(i) .and. (i >= npcropmin .and. i <= npcropmax) )then
+          if (      this%is_crop(i) .and. (i >= cft_lb .and. i <= cft_ub) )then
              ! correct
           else if (.not. this%is_crop(i))then
              ! correct
