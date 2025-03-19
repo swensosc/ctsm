@@ -1365,7 +1365,7 @@ contains
     ! npcropmin is set so that we have the correct value of npcropmin below.
     do k = repr_structure_min, repr_structure_max
        do i = 0, mxpft
-          if ( this%is_crop_prognostic(i) ) then
+          if ( .not. this%is_crop_prognostic(i) ) then
              this%repr_structure_harvfrac(i,k) = 0._r8
           else
              ! For now, until we read this from the param file, set it based on
