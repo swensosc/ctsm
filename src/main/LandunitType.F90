@@ -18,6 +18,7 @@ module LandunitType
   !
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
+  use clm_varctl     , only : nhillslope,nelevzone
   use clm_varcon     , only : ispval
   !
   ! !PUBLIC TYPES:
@@ -54,11 +55,13 @@ module LandunitType
      real(r8), pointer :: z_d_town     (:) ! urban landunit displacement height (m)
 
      ! hillslope variables
-     real(r8), pointer :: stream_channel_depth   (:) ! stream channel bankfull depth (m)
-     real(r8), pointer :: stream_channel_width   (:) ! stream channel bankfull width (m)
-     real(r8), pointer :: stream_channel_length  (:) ! stream channel length (m)
-     real(r8), pointer :: stream_channel_slope   (:) ! stream channel slope (m/m)
-     real(r8), pointer :: stream_channel_number  (:) ! number of channels in landunit
+     real(r8), pointer :: stream_channel_depth   (:,:) ! stream channel bankfull depth (m)
+     real(r8), pointer :: stream_channel_width   (:,:) ! stream channel bankfull width (m)
+     real(r8), pointer :: stream_channel_length  (:,:) ! stream channel length (m)
+     real(r8), pointer :: stream_channel_slope   (:,:) ! stream channel slope (m/m)
+     real(r8), pointer :: stream_channel_elev    (:,:) ! stream channel elevation (m)
+     real(r8), pointer :: stream_channel_number  (:,:) ! number of channels in landunit
+     real(r8), pointer :: hillslope_fraction     (:,:) ! fraction of landunit occupied by each hillslope
 
    contains
 
@@ -112,11 +115,13 @@ contains
     allocate(this%z_d_town     (begl:endl)); this%z_d_town     (:) = nan
 
     ! Hillslope variables initialized in HillslopeHydrologyMod
-    allocate(this%stream_channel_depth(begl:endl));  this%stream_channel_depth   (:) = nan
-    allocate(this%stream_channel_width(begl:endl));  this%stream_channel_width   (:) = nan
-    allocate(this%stream_channel_length(begl:endl)); this%stream_channel_length  (:) = nan
-    allocate(this%stream_channel_slope(begl:endl));  this%stream_channel_slope   (:) = nan
-    allocate(this%stream_channel_number(begl:endl)); this%stream_channel_number  (:) = nan
+    allocate(this%stream_channel_depth(begl:endl,nelevzone));  this%stream_channel_depth   (:,:) = nan
+    allocate(this%stream_channel_width(begl:endl,nelevzone));  this%stream_channel_width   (:,:) = nan
+    allocate(this%stream_channel_length(begl:endl,nelevzone)); this%stream_channel_length  (:,:) = nan
+    allocate(this%stream_channel_slope(begl:endl,nelevzone));  this%stream_channel_slope   (:,:) = nan
+    allocate(this%stream_channel_elev(begl:endl,nelevzone));   this%stream_channel_elev    (:,:) = nan
+    allocate(this%stream_channel_number(begl:endl,nelevzone)); this%stream_channel_number  (:,:) = nan
+    allocate(this%hillslope_fraction(begl:endl,nhillslope));        this%hillslope_fraction          (:,:) = nan
 
   end subroutine Init
 
@@ -155,7 +160,9 @@ contains
     deallocate(this%stream_channel_width)
     deallocate(this%stream_channel_length)
     deallocate(this%stream_channel_slope)
+    deallocate(this%stream_channel_elev)
     deallocate(this%stream_channel_number)
+    deallocate(this%hillslope_fraction)
   end subroutine Clean
 
 end module LandunitType

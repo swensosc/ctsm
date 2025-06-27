@@ -156,6 +156,9 @@ module clm_varctl
   ! number of hillslopes per landunit
   integer, public :: nhillslope = 0
 
+  ! number of elevation zones per landunit
+  integer, public :: nelevzone = 0
+
   ! maximum number of hillslope columns per landunit
   integer, public :: max_columns_hillslope = 1
 

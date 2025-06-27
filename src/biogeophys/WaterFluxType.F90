@@ -9,6 +9,7 @@ module WaterFluxType
   use shr_kind_mod   , only: r8 => shr_kind_r8
   use clm_varpar     , only : nlevsno, nlevsoi
   use clm_varcon     , only : spval
+  use clm_varctl     , only : nelevzone
   use decompMod      , only : bounds_type
   use decompMod      , only : subgrid_level_patch, subgrid_level_column, subgrid_level_landunit, subgrid_level_gridcell
   use LandunitType   , only : lun                
@@ -75,7 +76,7 @@ module WaterFluxType
      real(r8), pointer :: qflx_latflow_in_col      (:)   ! col hillslope lateral flow input (mm/s)
      real(r8), pointer :: qflx_latflow_out_col     (:)   ! col hillslope lateral flow output (mm/s)
      real(r8), pointer :: volumetric_discharge_col (:)   ! col hillslope discharge (m3/s)
-     real(r8), pointer :: volumetric_streamflow_lun(:)   ! lun stream discharge (m3/s)
+     real(r8), pointer :: volumetric_streamflow_lun(:,:) ! lun stream discharge (m3/s)
      real(r8), pointer :: qflx_drain_perched_col   (:)   ! col sub-surface runoff from perched wt (mm H2O /s)                                                                                                      
      real(r8), pointer :: qflx_top_soil_col        (:)   ! col net water input into soil from top (mm/s)
      real(r8), pointer :: qflx_floodc_col          (:)   ! col flood water flux at column level
@@ -291,9 +292,10 @@ contains
     call AllocateVar1d(var = this%volumetric_discharge_col, name = 'volumetric_discharge_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
-    call AllocateVar1d(var = this%volumetric_streamflow_lun, name = 'volumetric_streamflow_lun', &
+    call AllocateVar2d(var = this%volumetric_streamflow_lun, name = 'volumetric_streamflow_lun', &
          container = tracer_vars, &
-         bounds = bounds, subgrid_level = subgrid_level_landunit)
+         bounds = bounds, subgrid_level = subgrid_level_landunit, &
+         dim2beg = 1, dim2end = nelevzone)
     call AllocateVar1d(var = this%qflx_top_soil_col, name = 'qflx_top_soil_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
@@ -523,14 +525,16 @@ contains
             ptr_col=this%volumetric_discharge_col,default='inactive')
 
        if (use_hillslope_routing) then
-          this%volumetric_streamflow_lun(begl:endl) = spval
-          call hist_addfld1d ( &
+          this%volumetric_streamflow_lun(begl:endl,:) = spval
+          call hist_addfld2d ( &
                fname=this%info%fname('VOLUMETRIC_STREAMFLOW'),  &
-               units='m3/s',  &
+               units='m3/s', type2d='nelevzone',  &
                avgflag='A', &
                long_name=this%info%lname('volumetric streamflow from hillslope'), &
                l2g_scale_type='natveg', &
-               ptr_lunit=this%volumetric_streamflow_lun)
+               !ptr_lunit=this%volumetric_streamflow_lun)
+
+               ptr_lunit=this%volumetric_streamflow_lun,default='inactive')
        endif
     endif
 
@@ -922,7 +926,7 @@ contains
     if (use_hillslope_routing) then
        do l = bounds%begl, bounds%endl
           if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
-             this%volumetric_streamflow_lun(l) = 0._r8
+             this%volumetric_streamflow_lun(l,:) = 0._r8
           end if
        end do
     endif

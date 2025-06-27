@@ -2345,7 +2345,7 @@ contains
     use clm_varctl      , only : caseid, ctitle, fsurdat, finidat, paramfile
     use clm_varctl      , only : hillslope_file
     use clm_varctl      , only : version, hostname, username, conventions, source
-    use clm_varctl      , only : use_hillslope,nhillslope,max_columns_hillslope
+    use clm_varctl      , only : use_hillslope,nhillslope,nelevzone,max_columns_hillslope
     use domainMod       , only : ldomain
     use fileutils       , only : get_filename
     !
@@ -2487,6 +2487,7 @@ contains
     call ncd_defdim(lnfid, 'nvegwcs',nvegwcs, dimid)
     if (use_hillslope) then
        call ncd_defdim(lnfid, 'nhillslope',nhillslope, dimid)
+       call ncd_defdim(lnfid, 'nelevzone',nelevzone, dimid)
        call ncd_defdim(lnfid, 'max_columns_hillslope',max_columns_hillslope, dimid)
     endif
     call ncd_defdim(lnfid, 'mxsowings' , mxsowings , dimid)
@@ -3100,7 +3101,7 @@ contains
     !
     integer :: sec_hist_nhtfrq            ! hist_nhtfrq converted to seconds
     ! !LOCAL VARIABLES:
-    integer :: vid,n,i,j,m,c              ! indices
+    integer :: vid,n,i,j,l,m,c            ! indices
     integer :: nstep                      ! current step
     integer :: mcsec                      ! seconds of current date
     integer :: mdcur                      ! current day
@@ -3176,11 +3177,17 @@ contains
              call ncd_defvar(varname='hillslope_index', xtype=ncd_int, &
                   dim1name=namec, long_name='hillslope index', &
                   ncid=nfid(t))             
+             call ncd_defvar(varname='hillslope_elevzone', xtype=ncd_int, &
+                  dim1name=namec, long_name='hillslope elevation zone index', &
+                  ncid=nfid(t))             
              call ncd_defvar(varname='hillslope_cold', xtype=ncd_int, &
                   dim1name=namec, long_name='hillslope downhill column index', &
                   ncid=nfid(t))             
              call ncd_defvar(varname='hillslope_colu', xtype=ncd_int, &
                   dim1name=namec, long_name='hillslope uphill column index', &
+                  ncid=nfid(t))
+             call ncd_defvar(varname='stream_channel_elev', xtype=ncd_double, &
+                  dim1name=namec,long_name='hillslope stream channel elev', &
                   ncid=nfid(t))             
           end if
 
@@ -3281,6 +3288,7 @@ contains
              call ncd_io(varname='hillslope_slope' , data=col%hill_slope, dim1name=namec, ncid=nfid(t), flag='write')
              call ncd_io(varname='hillslope_aspect' , data=col%hill_aspect, dim1name=namec, ncid=nfid(t), flag='write')
              call ncd_io(varname='hillslope_index' , data=col%hillslope_ndx, dim1name=namec, ncid=nfid(t), flag='write')
+             call ncd_io(varname='hillslope_elevzone' , data=col%hillslope_elevzone, dim1name=namec, ncid=nfid(t), flag='write')
 
              ! write global indices rather than local indices
              allocate(icarr(bounds%begc:bounds%endc),stat=ier)
@@ -3307,6 +3315,18 @@ contains
              enddo
 
              call ncd_io(varname='hillslope_colu' , data=icarr, dim1name=namec, ncid=nfid(t), flag='write')
+
+             ! convert from landunit to column for history output
+             do c = bounds%begc,bounds%endc
+                if (col%is_hillslope_column(c)) then
+                   l = col%landunit(c)
+                   icarr(c) = lun%stream_channel_elev(l,col%hillslope_elevzone(c))
+                else
+                   icarr(c) = 0._r8
+                endif
+             enddo
+             call ncd_io(varname='stream_channel_elev' , data=icarr, dim1name=namec, ncid=nfid(t), flag='write')
+
              deallocate(icarr)
           endif
 
@@ -5532,6 +5552,7 @@ contains
     ! !USES:
     use clm_varpar      , only : nlevgrnd, nlevsno, nlevlak, numrad, nlevdecomp_full, nlevcan, nvegwcs,nlevsoi
     use clm_varpar      , only : natpft_size, cft_size, maxpatch_glc, mxsowings, mxharvests
+    use clm_varctl      , only : nelevzone
     use landunit_varcon , only : max_lunit
     !
     ! !ARGUMENTS:
@@ -5693,6 +5714,8 @@ contains
         num2d = nlevcan
     case ('nvegwcs')
         num2d = nvegwcs
+    case ('nelevzone')
+        num2d = nelevzone
     case default
        write(iulog,*) trim(subname),' ERROR: unsupported 2d type ',type2d, &
           ' currently supported types for multi level fields are: ', &

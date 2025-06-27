@@ -15,7 +15,8 @@ module TopoMod
   use glcBehaviorMod , only : glc_behavior_type
   use landunit_varcon, only : istice, istsoil
   use filterColMod   , only : filter_col_type, col_filter_from_logical_array_active_only
-  use clm_varctl     , only : use_hillslope, downscale_hillslope_meteorology
+  use clm_varcon     , only : ispval
+  use clm_varctl     , only : use_hillslope, downscale_hillslope_meteorology, nhillslope, nelevzone
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -225,8 +226,10 @@ contains
     !
     ! !LOCAL VARIABLES:
     integer :: begc, endc
-    integer :: c, l, g
-    real(r8), allocatable :: mean_hillslope_elevation(:)
+    integer :: c, l, g, n, ez
+    real(r8), allocatable :: mean_intra_hillslope_elevation(:,:)
+    real(r8), allocatable :: mean_inter_hillslope_elevation(:)
+    real(r8), allocatable :: hillslope_elevation_zone(:)
     real(r8):: mhe_norm
 
     character(len=*), parameter :: subname = 'UpdateTopo'
@@ -249,22 +252,60 @@ contains
          this%topo_col(begc:endc), &
          this%needs_downscaling_col(begc:endc))
 
-    ! calculate area-weighted mean hillslope elevation on each landunit
+    ! calculate area-weighted mean hillslope elevation on each landunit and elevation zone
     if (use_hillslope) then
-       allocate(mean_hillslope_elevation(bounds%begl:bounds%endl))
-       mean_hillslope_elevation(:) = 0._r8
+       allocate(mean_intra_hillslope_elevation(bounds%begl:bounds%endl,nelevzone))
+       allocate(mean_inter_hillslope_elevation(bounds%begl:bounds%endl))
+       allocate(hillslope_elevation_zone(nhillslope))
+       mean_intra_hillslope_elevation(:,:) = 0._r8
+       mean_inter_hillslope_elevation(:)   = 0._r8
+       ! first calculate mean elevation of elevation zones (inter-hillslope),
+       ! then calculate mean hillslope elevation relative to itself (intra-hillslope)
+       ! identify elevation zone of each hillslope             
        do l = bounds%begl, bounds%endl
-          mhe_norm = 0._r8
-          do c = lun%coli(l), lun%colf(l)
-             if (col%is_hillslope_column(c)) then
-                mean_hillslope_elevation(l) = mean_hillslope_elevation(l) &
-                     + col%hill_elev(c)*col%hill_area(c)
-                mhe_norm = mhe_norm + col%hill_area(c)
+          if(lun%nhillslopes(l) > 0) then
+             hillslope_elevation_zone = 0
+             do c = lun%coli(l), lun%colf(l)
+                if (col%is_hillslope_column(c) .and. col%cold(c)==ispval) then
+                   ez = col%hillslope_elevzone(c)
+                   n  = col%hillslope_ndx(c)
+                   hillslope_elevation_zone(n) = ez
+                endif
+             enddo
+
+             ! calculate mean elevation, weighted by elevation zone areas
+             do n = 1, nhillslope
+                ez = hillslope_elevation_zone(n)
+                if (ez > 0) then
+                   !scs
+                   !write(*,*) 'inter ',iam,ez,l,lun%nhillslopes(l),mean_inter_hillslope_elevation(l), lun%hillslope_fraction(l,n),lun%stream_channel_elev(l,ez)
+
+
+                   mean_inter_hillslope_elevation(l) = mean_inter_hillslope_elevation(l) &
+                        + lun%hillslope_fraction(l,n)*lun%stream_channel_elev(l,ez)
+                endif
+             enddo
+          endif
+       enddo
+       
+       ! identify mean elevation of each hillslope (area weighted column mean)
+       do ez = 1, nelevzone
+          do l = bounds%begl, bounds%endl
+             mhe_norm = 0._r8
+             do c = lun%coli(l), lun%colf(l)
+                if (col%is_hillslope_column(c)) then
+                   if (col%hillslope_elevzone(c) == ez) then
+                      mean_intra_hillslope_elevation(l,ez) = mean_intra_hillslope_elevation(l,ez) &
+                           + col%hill_elev(c)*col%hill_area(c)
+                      mhe_norm = mhe_norm + col%hill_area(c)
+
+                   endif
+                endif
+             enddo
+             if (mhe_norm > 0) then
+                mean_intra_hillslope_elevation(l,ez) = mean_intra_hillslope_elevation(l,ez)/mhe_norm
              endif
           enddo
-          if (mhe_norm > 0) then
-             mean_hillslope_elevation(l) = mean_hillslope_elevation(l)/mhe_norm
-          endif
        enddo
     endif
        
@@ -287,14 +328,22 @@ contains
        ! rather than the atmosphere's topo value.
        if (col%is_hillslope_column(c) .and. downscale_hillslope_meteorology) then
           l = col%landunit(c)
+          ez = col%hillslope_elevzone(c)
           this%topo_col(c) =  this%topo_col(c) &
-               + (col%hill_elev(c) - mean_hillslope_elevation(l))
+               + (col%hill_elev(c) - mean_intra_hillslope_elevation(l,ez)) &
+               + (lun%stream_channel_elev(l,ez) - mean_inter_hillslope_elevation(l))
           this%needs_downscaling_col(c) = .true.
        endif
     end do
 
     call glc_behavior%update_glc_classes(bounds, this%topo_col(begc:endc))
 
+    if (use_hillslope) then
+       deallocate(mean_intra_hillslope_elevation, &
+            mean_inter_hillslope_elevation, &
+            hillslope_elevation_zone)
+    endif
+    
   end subroutine UpdateTopo
 
   !-----------------------------------------------------------------------

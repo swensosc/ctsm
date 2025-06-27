@@ -1051,7 +1051,7 @@ contains
     !
     ! !USES:
     use clm_instur, only : ncolumns_hillslope, wt_nat_patch
-    use clm_varctl, only : nhillslope,max_columns_hillslope
+    use clm_varctl, only : nhillslope,nelevzone,max_columns_hillslope
     use clm_varpar, only : natpft_size, natpft_lb, natpft_ub
     use ncdio_pio,  only : ncd_inqdid, ncd_inqdlen
     use pftconMod , only : noveg
@@ -1084,6 +1084,14 @@ contains
     else
        call ncd_inqdlen(ncid,dimid,nh)
        nhillslope = nh
+    endif
+    ! number of elevation zones per landunit
+    call ncd_inqdid(ncid,'nelevzone',dimid,readvar)
+    if (.not. readvar) then
+       call endrun( msg=' ERROR: nelevzone not on surface data file'//errMsg(sourcefile, __LINE__))
+    else
+       call ncd_inqdlen(ncid,dimid,nh)
+       nelevzone = nh
     endif
     ! maximum number of columns per landunit
     call ncd_inqdid(ncid,'nmaxhillcol',dimid,readvar)

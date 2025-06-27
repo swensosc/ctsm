@@ -15,7 +15,7 @@ module WaterStateType
   use decompMod      , only : subgrid_level_patch, subgrid_level_column, subgrid_level_landunit, subgrid_level_gridcell
   use clm_varctl     , only : use_bedrock, use_excess_ice, iulog
   use spmdMod        , only : masterproc
-  use clm_varctl     , only : use_fates, use_hillslope
+  use clm_varctl     , only : use_fates, use_hillslope, nelevzone
   use clm_varpar     , only : nlevgrnd, nlevsoi, nlevurb, nlevmaxurbgrnd, nlevsno   
   use clm_varcon     , only : spval
   use LandunitType   , only : lun                
@@ -57,7 +57,7 @@ module WaterStateType
      real(r8), pointer :: exice_bulk_init        (:)    ! inital value for excess ice (new) (unitless)
 
      ! Hillslope stream variables
-     real(r8), pointer :: stream_water_volume_lun(:)   ! landunit volume of water in the streams (m3)
+     real(r8), pointer :: stream_water_volume_lun(:,:)  ! landunit volume of water in the streams (m3)
 
    contains
 
@@ -160,9 +160,10 @@ contains
     call AllocateVar1d(var = this%dynbal_baseline_ice_col, name = 'dynbal_baseline_ice_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
-    call AllocateVar1d(var = this%stream_water_volume_lun, name = 'stream_water_volume_lun', &
+    call AllocateVar2d(var = this%stream_water_volume_lun, name = 'stream_water_volume_lun', &
          container = tracer_vars, &
-         bounds = bounds, subgrid_level = subgrid_level_landunit)
+         bounds = bounds, subgrid_level = subgrid_level_landunit, &
+         dim2beg = 1, dim2end = nelevzone)
     !excess ice vars
     call AllocateVar2d(var = this%excess_ice_col, name = 'excess_ice_col', &
          container = tracer_vars, &
@@ -293,8 +294,8 @@ contains
     end if
 
     if (use_hillslope) then
-       this%stream_water_volume_lun(begl:endl) = spval
-       call hist_addfld1d (fname=this%info%fname('STREAM_WATER_VOLUME'),  units='m3',  &
+       this%stream_water_volume_lun(begl:endl,1:nelevzone) = spval
+       call hist_addfld2d (fname=this%info%fname('STREAM_WATER_VOLUME'),  units='m3',  type2d='nelevzone', &
             avgflag='A', &
             long_name=this%info%lname('volume of water in stream channel (hillslope hydrology only)'), &
             ptr_lunit=this%stream_water_volume_lun, l2g_scale_type='natveg',  default='inactive')
@@ -362,7 +363,7 @@ contains
       this%h2osfc_col(bounds%begc:bounds%endc) = 0._r8
       this%snocan_patch(bounds%begp:bounds%endp) = 0._r8
       this%liqcan_patch(bounds%begp:bounds%endp) = 0._r8
-      this%stream_water_volume_lun(bounds%begl:bounds%endl) = 0._r8
+      this%stream_water_volume_lun(bounds%begl:bounds%endl,1:nelevzone) = 0._r8
 
       !--------------------------------------------
       ! Set soil water
@@ -714,13 +715,24 @@ contains
          units='kg/m2', &
          interpinic_flag='interp', readvar=readvar, data=this%dynbal_baseline_ice_col)
 
-    call restartvar(ncid=ncid, flag=flag, &
-         varname=this%info%fname('STREAM_WATER_VOLUME'), &
-         xtype=ncd_double,  &
-         dim1name='landunit', &
-         long_name=this%info%lname('water in stream channel'), &
-         units='m3', &
-         interpinic_flag='interp', readvar=readvar, data=this%stream_water_volume_lun)
+    ! hack for incompatibility with 1d var on restart file
+    if (use_hillslope) then
+       if (flag=='read') then 
+          ! data is nan on restart file... so ignore
+          this%stream_water_volume_lun = 0
+       else
+
+          call restartvar(ncid=ncid, flag=flag, &
+               varname=this%info%fname('STREAM_WATER_VOLUME'), &
+               xtype=ncd_double,  &
+               dim1name='landunit', dim2name='elevzone', switchdim=.true., &
+               long_name=this%info%lname('water in stream channel'), &
+               units='m3', &
+               scale_by_thickness=.false., &
+               interpinic_flag='skip', readvar=readvar, data=this%stream_water_volume_lun)
+       endif
+    endif
+    
     ! Restart excess ice vars
     if (.not. use_excess_ice) then
        ! no need to even define the restart vars

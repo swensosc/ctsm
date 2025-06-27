@@ -18,7 +18,7 @@ module restFileMod
   use clm_instMod      , only : clm_instRest
   use histFileMod      , only : hist_restart_ncd
   use clm_varctl       , only : iulog, use_fates, use_hydrstress, compname
-  use clm_varctl       , only : create_crop_landunit, irrigate
+  use clm_varctl       , only : create_crop_landunit, irrigate, use_hillslope
   use clm_varcon       , only : nameg, namel, namec, namep, nameCohort
   use ncdio_pio        , only : file_desc_t, ncd_pio_createfile, ncd_pio_openfile, ncd_global
   use ncdio_pio        , only : ncd_pio_closefile, ncd_defdim, ncd_putatt, ncd_enddef, check_dim_size
@@ -518,7 +518,7 @@ contains
     ! !USES:
     use clm_time_manager     , only : get_nstep
     use clm_varctl           , only : caseid, ctitle, version, username, hostname, fsurdat
-    use clm_varctl           , only : hillslope_file
+    use clm_varctl           , only : hillslope_file,nelevzone
     use clm_varctl           , only : conventions, source
     use dynSubgridControlMod , only : get_flanduse_timeseries
     use clm_varpar           , only : numrad, nlevlak, nlevsno, nlevgrnd, nlevmaxurbgrnd, nlevcan
@@ -566,6 +566,9 @@ contains
     call ncd_defdim(ncid , 'mxharvests' , mxharvests  ,  dimid)
     if ( use_hydrstress ) then
       call ncd_defdim(ncid , 'vegwcs'  , nvegwcs        ,  dimid)
+    end if
+    if ( use_hillslope ) then
+      call ncd_defdim(ncid , 'elevzone'  , nelevzone        ,  dimid)
     end if
     call ncd_defdim(ncid , 'glc_nec', maxpatch_glc, dimid)
     call ncd_defdim(ncid , 'glc_nec1', maxpatch_glc+1, dimid)

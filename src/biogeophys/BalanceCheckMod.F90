@@ -274,7 +274,8 @@ contains
     if (use_hillslope_routing) then
        do l = begl, endl
           g = lun%gridcell(l)
-          wb_grc(g) = wb_grc(g) +  waterstate_inst%stream_water_volume_lun(l) &
+          ! sum over elevation zones
+          wb_grc(g) = wb_grc(g) +  sum(waterstate_inst%stream_water_volume_lun(l,:)) &
                *1e3_r8/(grc%area(g)*1.e6_r8)
        enddo
     endif

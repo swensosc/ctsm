@@ -12,6 +12,7 @@ module HillslopeHydrologyMod
   use abortutils     , only : endrun
   use clm_varctl     , only : iulog
   use clm_varctl     , only : use_hillslope_routing
+  use clm_varctl     , only : nelevzone
   use decompMod      , only : bounds_type
   use clm_varcon     , only : rpi
   use HillslopeHydrologyUtilsMod, only : HillslopeSoilThicknessProfile_linear
@@ -192,6 +193,7 @@ contains
     integer,  pointer     :: ncolumns_hillslope_in(:) ! read in number of columns
     integer,  allocatable :: ncolumns_hillslope(:)    ! number of hillslope columns
     integer,  allocatable :: hill_ndx(:,:)      ! hillslope index
+    integer,  allocatable :: hill_ez(:,:)       ! hillslope elevation zone index
     integer,  allocatable :: col_ndx(:,:)       ! column index
     integer,  allocatable :: col_dndx(:,:)      ! downhill column index
     integer,  allocatable :: hill_pftndx(:,:)   ! hillslope pft index []
@@ -205,16 +207,17 @@ contains
     real(r8), allocatable :: hill_width(:,:)    ! hillslope width  [m]
     real(r8), allocatable :: hill_elev(:,:)     ! hillslope height [m]
     real(r8), allocatable :: hill_bedrock(:,:)  ! hillslope bedrock depth [m]
-    real(r8), pointer     :: fstream_in(:)      ! read in - 1D - float
+    real(r8), pointer     :: fstream_in(:,:)    ! read in - 1D - float
 
-    type(file_desc_t)     :: ncid                 ! netcdf id
-    logical               :: readvar              ! check whether variable on file
-    character(len=256)    :: locfn                ! local filename
-    integer               :: ierr                 ! error code
-    integer               :: c, l, g, i, j, ci, nh       ! indices
+    type(file_desc_t)     :: ncid               ! netcdf id
+    logical               :: readvar            ! check whether variable on file
+    character(len=256)    :: locfn              ! local filename
+    integer               :: ierr               ! error code
+    integer               :: c, l, g, i, j, ci, nh, ez      ! indices
 
     real(r8)              :: ncol_per_hillslope(nhillslope) ! number of columns per hillslope
     real(r8)              :: hillslope_area(nhillslope)     ! area of hillslope
+    real(r8)              :: hillslope_elevzone(nhillslope) ! elevation zone of hillslope
     real(r8)              :: nhill_per_landunit(nhillslope) ! total number of each representative hillslope per landunit
 
     character(len=*), parameter :: subname = 'InitHillslope'
@@ -233,6 +236,7 @@ contains
          ncolumns_hillslope(bounds%begl:bounds%endl),  &
          pct_hillslope(bounds%begl:bounds%endl,nhillslope),  &
          hill_ndx     (bounds%begl:bounds%endl,max_columns_hillslope), &
+         hill_ez      (bounds%begl:bounds%endl,max_columns_hillslope), &
          col_ndx      (bounds%begl:bounds%endl,max_columns_hillslope), &
          col_dndx     (bounds%begl:bounds%endl,max_columns_hillslope), &
          hill_slope   (bounds%begl:bounds%endl,max_columns_hillslope), &
@@ -283,6 +287,15 @@ contains
     do l = bounds%begl,bounds%endl
        g = lun%gridcell(l)
        hill_ndx(l,:) = ihillslope_in(g,:)
+    enddo
+
+    call ncd_io(ncid=ncid, varname='elev_zone_index', flag='read', data=ihillslope_in, dim1name=grlnd, readvar=readvar)
+    if (masterproc .and. .not. readvar) then
+       call endrun( 'ERROR:: elev_zone_index not found on surface data set.'//errmsg(sourcefile, __LINE__) )
+    end if
+    do l = bounds%begl,bounds%endl
+       g = lun%gridcell(l)
+       hill_ez(l,:) = ihillslope_in(g,:)
     enddo
 
     call ncd_io(ncid=ncid, varname='column_index', flag='read', data=ihillslope_in, dim1name=grlnd, readvar=readvar)
@@ -376,7 +389,7 @@ contains
     deallocate(ihillslope_in)
 
     if (use_hillslope_routing) then
-       allocate(fstream_in(bounds%begg:bounds%endg))
+       allocate(fstream_in(bounds%begg:bounds%endg,nelevzone))
 
        call ncd_io(ncid=ncid, varname='hillslope_stream_depth', flag='read', data=fstream_in, dim1name=grlnd, readvar=readvar)
        if (masterproc .and. .not. readvar) then
@@ -384,7 +397,7 @@ contains
        end if
        do l = bounds%begl,bounds%endl
           g = lun%gridcell(l)
-          lun%stream_channel_depth(l) = fstream_in(g)
+          lun%stream_channel_depth(l,:) = fstream_in(g,:)
        enddo
 
        call ncd_io(ncid=ncid, varname='hillslope_stream_width', flag='read', data=fstream_in, dim1name=grlnd, readvar=readvar)
@@ -393,7 +406,7 @@ contains
        end if
        do l = bounds%begl,bounds%endl
           g = lun%gridcell(l)
-          lun%stream_channel_width(l) = fstream_in(g)
+          lun%stream_channel_width(l,:) = fstream_in(g,:)
        enddo
 
        call ncd_io(ncid=ncid, varname='hillslope_stream_slope', flag='read', data=fstream_in, dim1name=grlnd, readvar=readvar)
@@ -402,7 +415,16 @@ contains
        end if
        do l = bounds%begl,bounds%endl
           g = lun%gridcell(l)
-          lun%stream_channel_slope(l) = fstream_in(g)
+          lun%stream_channel_slope(l,:) = fstream_in(g,:)
+       enddo
+
+       call ncd_io(ncid=ncid, varname='hillslope_stream_elevation', flag='read', data=fstream_in, dim1name=grlnd, readvar=readvar)
+       if (masterproc .and. .not. readvar) then
+          call endrun( 'ERROR:: hillslope_stream_elev not found on surface data set.'//errmsg(sourcefile, __LINE__) )
+       end if
+       do l = bounds%begl,bounds%endl
+          g = lun%gridcell(l)
+          lun%stream_channel_elev(l,:) = fstream_in(g,:)
        enddo
 
        deallocate(fstream_in)
@@ -432,6 +454,7 @@ contains
              ci = c-lun%coli(l)+1
 
              col%hillslope_ndx(c) = hill_ndx(l,ci)
+             col%hillslope_elevzone(c) = hill_ez(l,ci)
 
              ! Find uphill neighbors (this may not actually be useful...)
              col%colu(c) = ispval
@@ -464,11 +487,15 @@ contains
           ! number of columns in each hillslope
           ncol_per_hillslope(:)= 0._r8
           hillslope_area(:)    = 0._r8
+          hillslope_elevzone(:) = 0._r8
           do c = lun%coli(l), lun%colf(l)
              nh = col%hillslope_ndx(c)
              if (nh > 0) then
                 ncol_per_hillslope(nh) = ncol_per_hillslope(nh) + 1
                 hillslope_area(nh) = hillslope_area(nh) + col%hill_area(c)
+                if (col%cold(c) == ispval) then
+                   hillslope_elevzone(nh) = col%hillslope_elevzone(c)
+                endif
              end if
           enddo
 
@@ -480,13 +507,14 @@ contains
              ! is the total area divided by individual area
              ! include factor of 0.5 because a channel is shared by ~2 hillslopes
 
-             lun%stream_channel_number(l) = 0._r8
+             lun%stream_channel_number(l,:) = 0._r8
              do nh = 1, nhillslope
                 if (hillslope_area(nh) > 0._r8) then
                    nhill_per_landunit(nh) = grc%area(g)*1.e6_r8*lun%wtgcell(l) &
                         *pct_hillslope(l,nh)*0.01/hillslope_area(nh)
 
-                   lun%stream_channel_number(l) = lun%stream_channel_number(l) &
+                   ez = hillslope_elevzone(nh)
+                   lun%stream_channel_number(l,ez) = lun%stream_channel_number(l,ez) &
                         + 0.5_r8 * nhill_per_landunit(nh)
                 end if
              enddo
@@ -495,10 +523,11 @@ contains
              ! Total length of stream banks is individual widths
              ! times number of hillslopes per landunit
              ! include factor of 0.5 because a channel is shared by ~2 hillslopes
-             lun%stream_channel_length(l) = 0._r8
+             lun%stream_channel_length(l,:) = 0._r8
              do c = lun%coli(l), lun%colf(l)
                 if (col%cold(c) == ispval) then
-                   lun%stream_channel_length(l) = lun%stream_channel_length(l) &
+                   ez = col%hillslope_elevzone(c)
+                   lun%stream_channel_length(l,ez) = lun%stream_channel_length(l,ez) &
                         + col%hill_width(c) * 0.5_r8 * nhill_per_landunit(col%hillslope_ndx(c))
                 end if
              enddo
@@ -960,9 +989,9 @@ contains
     type(waterstatebulk_type), intent(inout) :: waterstatebulk_inst
     type(waterfluxbulk_type),  intent(inout) :: waterfluxbulk_inst
 
-    integer               :: c, l, g, i, j
+    integer               :: c, l, g, i, j, ez
     integer               :: nstep
-    real(r8) :: dtime                                     ! land model time step (sec)
+    real(r8)              :: dtime                        ! land model time step (sec)
     real(r8)              :: cross_sectional_area         ! cross sectional area of stream water (m2)
     real(r8)              :: stream_depth                 ! depth of stream water (m)
     real(r8)              :: hydraulic_radius             ! cross sectional area divided by wetted perimeter (m)
@@ -977,74 +1006,76 @@ contains
 
     !-----------------------------------------------------------------------
     associate( &
-         stream_water_volume     =>    waterstatebulk_inst%stream_water_volume_lun , &  ! Input:  [real(r8) (:)   ] stream water volume (m3)
-         volumetric_streamflow   =>    waterfluxbulk_inst%volumetric_streamflow_lun  &  ! Input:  [real(r8) (:)   ] stream water discharge (m3/s)
+         stream_water_volume     =>    waterstatebulk_inst%stream_water_volume_lun , &  ! Input:  [real(r8) (:,:)   ] stream water volume (m3)
+         volumetric_streamflow   =>    waterfluxbulk_inst%volumetric_streamflow_lun  &  ! Input:  [real(r8) (:,:)   ] stream water discharge (m3/s)
          )
 
       ! Get time step
       dtime = get_step_size_real()
 
-      do l = bounds%begl,bounds%endl
-         volumetric_streamflow(l) = 0._r8
+      do ez = 1, nelevzone
+         do l = bounds%begl,bounds%endl
+            volumetric_streamflow(l,ez) = 0._r8
 
-         ! Check for vegetated landunits having initialized stream channel properties
-         active_stream = .false.
-         if (lun%itype(l) == istsoil .and. &
-              lun%stream_channel_length(l) > 0._r8 .and. &
-              lun%stream_channel_width(l) > 0._r8) then
-            active_stream = .true.
-         end if
+            ! Check for vegetated landunits having initialized stream channel properties
+            active_stream = .false.
+            if (lun%itype(l) == istsoil .and. &
+                 lun%stream_channel_length(l,ez) > 0._r8 .and. &
+                 lun%stream_channel_width(l,ez) > 0._r8) then
+               active_stream = .true.
+            end if
 
-         if (lun%active(l) .and. active_stream) then
-            ! Streamflow calculated from Manning equation
-            if (streamflow_method == streamflow_manning) then
-               cross_sectional_area = stream_water_volume(l) &
-                    /lun%stream_channel_length(l)
-               stream_depth =  cross_sectional_area &
-                    /lun%stream_channel_width(l)
-               hydraulic_radius = cross_sectional_area &
-                    /(lun%stream_channel_width(l) + 2*stream_depth)
+            if (lun%active(l) .and. active_stream) then
+               ! Streamflow calculated from Manning equation
+               if (streamflow_method == streamflow_manning) then
+                  cross_sectional_area = stream_water_volume(l,ez) &
+                       /lun%stream_channel_length(l,ez)
+                  stream_depth =  cross_sectional_area &
+                       /lun%stream_channel_width(l,ez)
+                  hydraulic_radius = cross_sectional_area &
+                       /(lun%stream_channel_width(l,ez) + 2*stream_depth)
 
-               if (hydraulic_radius <= 0._r8) then
-                  volumetric_streamflow(l) = 0._r8
-               else
-                  flow_velocity = (hydraulic_radius)**manning_exponent &
-                       * sqrt(lun%stream_channel_slope(l)) &
-                       / manning_roughness
-                  ! overbank flow
-                  if (stream_depth > lun%stream_channel_depth(l)) then
-                     if (overbank_method  == 1) then
-                        ! try increasing dynamic slope
-                        volumetric_streamflow(l) = cross_sectional_area * flow_velocity &
-                             *(stream_depth/lun%stream_channel_depth(l))
-                     else if (overbank_method  == 2) then
-                        ! try increasing flow area cross section
-                        overbank_area = (stream_depth -lun%stream_channel_depth(l)) * 30._r8 * lun%stream_channel_width(l)
-                        volumetric_streamflow(l) = (cross_sectional_area + overbank_area) * flow_velocity
-                     else if (overbank_method  == 3) then
-                        ! try removing all overbank flow instantly
-                        volumetric_streamflow(l) = cross_sectional_area * flow_velocity &
-                             + (stream_depth-lun%stream_channel_depth(l)) &
-                             *lun%stream_channel_width(l)*lun%stream_channel_length(l)/dtime
+                  if (hydraulic_radius <= 0._r8) then
+                     volumetric_streamflow(l,ez) = 0._r8
+                  else
+                     flow_velocity = (hydraulic_radius)**manning_exponent &
+                          * sqrt(lun%stream_channel_slope(l,ez)) &
+                          / manning_roughness
+                     ! overbank flow
+                     if (stream_depth > lun%stream_channel_depth(l,ez)) then
+                        if (overbank_method  == 1) then
+                           ! try increasing dynamic slope
+                           volumetric_streamflow(l,ez) = cross_sectional_area * flow_velocity &
+                                *(stream_depth/lun%stream_channel_depth(l,ez))
+                        else if (overbank_method  == 2) then
+                           ! try increasing flow area cross section
+                           overbank_area = (stream_depth -lun%stream_channel_depth(l,ez)) * 30._r8 * lun%stream_channel_width(l,ez)
+                           volumetric_streamflow(l,ez) = (cross_sectional_area + overbank_area) * flow_velocity
+                        else if (overbank_method  == 3) then
+                           ! try removing all overbank flow instantly
+                           volumetric_streamflow(l,ez) = cross_sectional_area * flow_velocity &
+                                + (stream_depth-lun%stream_channel_depth(l,ez)) &
+                                *lun%stream_channel_width(l,ez)*lun%stream_channel_length(l,ez)/dtime
+                        else
+                           call endrun( 'ERROR:: invalid overbank_method.'//errmsg(sourcefile, __LINE__) )
+                        end if
+
                      else
-                        call endrun( 'ERROR:: invalid overbank_method.'//errmsg(sourcefile, __LINE__) )
+                        volumetric_streamflow(l,ez) = cross_sectional_area * flow_velocity
                      end if
 
-                  else
-                     volumetric_streamflow(l) = cross_sectional_area * flow_velocity
+                     ! scale streamflow by number of channel reaches
+                     volumetric_streamflow(l,ez) = volumetric_streamflow(l,ez) * lun%stream_channel_number(l,ez)
+
+                     volumetric_streamflow(l,ez) = max(0._r8,min(volumetric_streamflow(l,ez),stream_water_volume(l,ez)/dtime))
                   end if
-
-                  ! scale streamflow by number of channel reaches
-                  volumetric_streamflow(l) = volumetric_streamflow(l) * lun%stream_channel_number(l)
-
-                  volumetric_streamflow(l) = max(0._r8,min(volumetric_streamflow(l),stream_water_volume(l)/dtime))
+               else
+                  call endrun( 'ERROR:: invalid streamflow_method'//errmsg(sourcefile, __LINE__) )
                end if
-            else
-               call endrun( 'ERROR:: invalid streamflow_method'//errmsg(sourcefile, __LINE__) )
-            end if
-         end if ! end of istsoil
-      enddo    ! end of loop over landunits
-
+            end if ! end of istsoil
+         enddo     ! end of loop over landunits
+      enddo        ! end of loop over elevation zones
+      
   end associate
 
   end subroutine HillslopeStreamOutflow
@@ -1074,10 +1105,10 @@ contains
     type(waterfluxbulk_type),  intent(inout) :: waterfluxbulk_inst
     type(waterdiagnosticbulk_type), intent(inout) :: waterdiagnosticbulk_inst
 
-    integer  :: c, l, g, i, j
-    real(r8) :: qflx_surf_vol               ! volumetric surface runoff (m3/s)
-    real(r8) :: qflx_drain_perched_vol      ! volumetric perched saturated drainage (m3/s)
-    real(r8) :: qflx_drain_vol              ! volumetric saturated drainage (m3/s)
+    integer  :: c, l, g, i, j, ez
+    real(r8) :: qflx_surf_vol(nelevzone)          ! volumetric surface runoff (m3/s)
+    real(r8) :: qflx_drain_perched_vol(nelevzone) ! volumetric perched saturated drainage (m3/s)
+    real(r8) :: qflx_drain_vol(nelevzone)         ! volumetric saturated drainage (m3/s)
     real(r8) :: dtime                       ! land model time step (sec)
     logical  :: active_stream
 
@@ -1085,62 +1116,68 @@ contains
 
     !-----------------------------------------------------------------------
     associate( &
-         stream_water_volume     =>    waterstatebulk_inst%stream_water_volume_lun, & ! Input/Output:  [real(r8) (:)   ] stream water volume (m3)
-         volumetric_streamflow   =>    waterfluxbulk_inst%volumetric_streamflow_lun,& ! Input:  [real(r8) (:)   ] stream water discharge (m3/s)
+         stream_water_volume     =>    waterstatebulk_inst%stream_water_volume_lun, & ! Input/Output:  [real(r8) (:,:)   ] stream water volume (m3)
+         volumetric_streamflow   =>    waterfluxbulk_inst%volumetric_streamflow_lun,& ! Input:  [real(r8) (:,:)   ] stream water discharge (m3/s)
          qflx_drain              =>    waterfluxbulk_inst%qflx_drain_col,           & ! Input:  [real(r8) (:)   ]  column level sub-surface runoff (mm H2O /s)
          qflx_drain_perched      =>    waterfluxbulk_inst%qflx_drain_perched_col,   & ! Input:  [real(r8) (:)   ]  column level sub-surface runoff (mm H2O /s)
          qflx_surf               =>    waterfluxbulk_inst%qflx_surf_col,            & ! Input: [real(r8) (:)   ]  total surface runoff (mm H2O /s)
-         stream_water_depth      =>    waterdiagnosticbulk_inst%stream_water_depth_lun   & ! Output:  [real(r8) (:)   ] stream water depth (m)
+         stream_water_depth      =>    waterdiagnosticbulk_inst%stream_water_depth_lun   & ! Output:  [real(r8) (:,:)   ] stream water depth (m)
          )
 
        ! Get time step
        dtime = get_step_size_real()
 
-       do l = bounds%begl,bounds%endl
+        do ez = 1,nelevzone
+          do l = bounds%begl,bounds%endl
 
-          ! Check for vegetated landunits having initialized stream channel properties
-          active_stream = .false.
-          if (lun%itype(l) == istsoil .and. &
-               lun%stream_channel_length(l) > 0._r8 .and. &
-               lun%stream_channel_width(l) > 0._r8) then
-             active_stream = .true.
-          end if
-
-          if (lun%active(l) .and. active_stream) then
-             g = lun%gridcell(l)
-             ! the drainage terms are 'net' quantities, so summing over
-             ! all columns in a hillslope is equivalent to the outflow
-             ! from the lowland column
-             do c = lun%coli(l), lun%colf(l)
-                if (col%is_hillslope_column(c) .and. col%active(c)) then
-                   qflx_surf_vol = qflx_surf(c)*1.e-3_r8 &
-                        *(grc%area(g)*1.e6_r8*col%wtgcell(c))
-                   qflx_drain_perched_vol = qflx_drain_perched(c)*1.e-3_r8 &
-                        *(grc%area(g)*1.e6_r8*col%wtgcell(c))
-                   qflx_drain_vol = qflx_drain(c)*1.e-3_r8 &
-                        *(grc%area(g)*1.e6_r8*col%wtgcell(c))
-
-                   stream_water_volume(l) = stream_water_volume(l) &
-                        + (qflx_drain_perched_vol &
-                         + qflx_drain_vol + qflx_surf_vol) * dtime
-                end if
-             enddo
-             stream_water_volume(l) = stream_water_volume(l) &
-                  - volumetric_streamflow(l) * dtime
-
-             ! account for negative drainage (via searchforwater in soilhydrology)
-             if (stream_water_volume(l) < 0._r8) then
-                volumetric_streamflow(l) = volumetric_streamflow(l) + stream_water_volume(l)/dtime
-                stream_water_volume(l) = 0._r8
+             ! Check for vegetated landunits having initialized stream channel properties
+             active_stream = .false.
+             if (lun%itype(l) == istsoil .and. &
+                  lun%stream_channel_length(l,ez) > 0._r8 .and. &
+                  lun%stream_channel_width(l,ez) > 0._r8) then
+                active_stream = .true.
              end if
 
-             stream_water_depth(l) = stream_water_volume(l) &
-                  /lun%stream_channel_length(l) &
-                  /lun%stream_channel_width(l)
+             if (lun%active(l) .and. active_stream) then
+                g = lun%gridcell(l)
+                ! the drainage terms are 'net' quantities, so summing over
+                ! all columns in a hillslope is equivalent to the outflow
+                ! from the lowland column
+                do c = lun%coli(l), lun%colf(l)
+                   if (col%is_hillslope_column(c) .and. col%active(c)) then
 
-          end if
+                      if (col%hillslope_elevzone(c) == ez) then
+                         qflx_surf_vol(ez) = qflx_surf(c)*1.e-3_r8 &
+                              *(grc%area(g)*1.e6_r8*col%wtgcell(c))
+                         qflx_drain_perched_vol(ez) = qflx_drain_perched(c)*1.e-3_r8 &
+                              *(grc%area(g)*1.e6_r8*col%wtgcell(c))
+                         qflx_drain_vol(ez) = qflx_drain(c)*1.e-3_r8 &
+                              *(grc%area(g)*1.e6_r8*col%wtgcell(c))
+                         
+                         stream_water_volume(l,ez) = stream_water_volume(l,ez) &
+                              + (qflx_drain_perched_vol(ez) &
+                              + qflx_drain_vol(ez) + qflx_surf_vol(ez)) * dtime
+
+                      end if
+                   end if
+                enddo
+                stream_water_volume(l,ez) = stream_water_volume(l,ez) &
+                     - volumetric_streamflow(l,ez) * dtime
+
+                ! account for negative drainage (via searchforwater in soilhydrology)
+                if (stream_water_volume(l,ez) < 0._r8) then
+                   volumetric_streamflow(l,ez) = volumetric_streamflow(l,ez) + stream_water_volume(l,ez)/dtime
+                   stream_water_volume(l,ez) = 0._r8
+                end if
+
+                stream_water_depth(l,ez) = stream_water_volume(l,ez) &
+                     /lun%stream_channel_length(l,ez) &
+                     /lun%stream_channel_width(l,ez)
+
+             end if
+          enddo
        enddo
-
+       
     end associate
 
   end subroutine HillslopeUpdateStreamWater

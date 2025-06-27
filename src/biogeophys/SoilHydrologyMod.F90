@@ -1726,7 +1726,7 @@ contains
      !
      ! !LOCAL VARIABLES:
      character(len=32) :: subname = 'PerchedLateralFlowHillslope' ! subroutine name
-     integer  :: c,fc,k,l,g                       ! indices
+     integer  :: c,fc,k,l,g,ez                    ! indices
      real(r8) :: dtime                            ! land model time step (sec)
      real(r8) :: drainage_tot                     ! total amount of drainage to be removed from the column (mm/s)
      real(r8) :: drainage_layer                   ! amount of drainage to be removed from current layer (mm/s)
@@ -1761,7 +1761,7 @@ contains
           zwt_perched        =>    soilhydrology_inst%zwt_perched_col    , & ! Input:  [real(r8) (:)   ] perched water table depth (m)                     
           tdepth             =>    wateratm2lndbulk_inst%tdepth_grc      , & ! Input:  [real(r8) (:)   ]  depth of water in tributary channels (m)
           tdepth_bankfull    =>    wateratm2lndbulk_inst%tdepthmax_grc   , & ! Input:  [real(r8) (:)   ]  bankfull depth of tributary channels (m)
-          stream_water_volume =>    waterstatebulk_inst%stream_water_volume_lun , & ! Input:  [real(r8) (:)   ] stream water volume (m3)
+          stream_water_volume =>    waterstatebulk_inst%stream_water_volume_lun , & ! Input:  [real(r8) (:,:)   ] stream water volume (m3)
 
 
           qflx_drain_perched =>    waterfluxbulk_inst%qflx_drain_perched_col , & ! Output: [real(r8) (:)   ] perched wt sub-surface runoff (mm H2O /s)         
@@ -1820,9 +1820,11 @@ contains
                       head_gradient = head_gradient / (col%hill_distance(c) - col%hill_distance(col%cold(c)))
                    else
                       if (use_hillslope_routing) then
-                         stream_water_depth = stream_water_volume(l) &
-                              /lun%stream_channel_length(l)/lun%stream_channel_width(l)
-                         stream_channel_depth = lun%stream_channel_depth(l)
+                         ! elevation zone
+                         ez = col%hillslope_elevzone(c)
+                         stream_water_depth = stream_water_volume(l,ez) &
+                              /lun%stream_channel_length(l,ez)/lun%stream_channel_width(l,ez)
+                         stream_channel_depth = lun%stream_channel_depth(l,ez)
                       else
                          stream_water_depth = tdepth(g)
                          stream_channel_depth = tdepth_bankfull(g)
@@ -2119,7 +2121,7 @@ contains
      !
      ! !LOCAL VARIABLES:
      character(len=32) :: subname = 'SubsurfaceLateralFlow' ! subroutine name
-     integer  :: c,j,fc,i,l,g                            ! indices
+     integer  :: c,j,fc,i,l,g,ez                         ! indices
      real(r8) :: dtime                                   ! land model time step (sec)
      real(r8) :: xs(bounds%begc:bounds%endc)             ! water needed to bring soil moisture to watmin (mm)
      real(r8) :: dzmm(bounds%begc:bounds%endc,1:nlevsoi) ! layer thickness (mm)
@@ -2177,7 +2179,7 @@ contains
           icefrac            =>    soilhydrology_inst%icefrac_col        , & ! Output: [real(r8) (:,:) ] fraction of ice in layer                         
           frost_table        =>    soilhydrology_inst%frost_table_col    , & ! Input:  [real(r8) (:)   ] frost table depth (m)                             
           zwt                =>    soilhydrology_inst%zwt_col            , & ! Input:  [real(r8) (:)   ] water table depth (m)                             
-          stream_water_volume =>    waterstatebulk_inst%stream_water_volume_lun, & ! Input:  [real(r8) (:)   ] stream water volume (m3)
+          stream_water_volume =>    waterstatebulk_inst%stream_water_volume_lun, & ! Input:  [real(r8) (:,:)   ] stream water volume (m3)
           
           qflx_snwcp_liq     =>    waterfluxbulk_inst%qflx_snwcp_liq_col     , & ! Output: [real(r8) (:)   ] excess rainfall due to snow capping (mm H2O /s) [+]
           qflx_ice_runoff_xs =>    waterfluxbulk_inst%qflx_ice_runoff_xs_col , & ! Output: [real(r8) (:)   ] solid runoff from excess ice in soil (mm H2O /s) [+]
@@ -2263,9 +2265,10 @@ contains
                   head_gradient = head_gradient / (col%hill_distance(c) - col%hill_distance(col%cold(c)))
                else
                   if (use_hillslope_routing) then
-                     stream_water_depth = stream_water_volume(l) &
-                          /lun%stream_channel_length(l)/lun%stream_channel_width(l)
-                     stream_channel_depth = lun%stream_channel_depth(l)
+                     ez = col%hillslope_elevzone(c)
+                     stream_water_depth = stream_water_volume(l,ez) &
+                          /lun%stream_channel_length(l,ez)/lun%stream_channel_width(l,ez)
+                     stream_channel_depth = lun%stream_channel_depth(l,ez)
                   else
                      stream_water_depth = tdepth(g)
                      stream_channel_depth = tdepth_bankfull(g)
@@ -2360,7 +2363,7 @@ contains
             ! When head gradient is negative (losing stream channel), 
             ! limit outflow by available stream channel water
             if (use_hillslope_routing .and. (qflx_latflow_out_vol(c) < 0._r8)) then
-               available_stream_water = stream_water_volume(l)/lun%stream_channel_number(l)/nhillslope
+               available_stream_water = stream_water_volume(l,ez)/lun%stream_channel_number(l,ez)/nhillslope
                if(abs(qflx_latflow_out_vol(c))*dtime > available_stream_water) then
                   qflx_latflow_out_vol(c) = -available_stream_water/dtime
                endif

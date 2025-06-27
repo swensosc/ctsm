@@ -84,7 +84,7 @@ module WaterDiagnosticBulkType
      real(r8), pointer :: qflx_prec_grnd_col     (:)   ! col water onto ground including canopy runoff (mm H2O/s)
 
      ! Hillslope stream variables
-     real(r8), pointer :: stream_water_depth_lun (:)   ! landunit depth of water in the streams (m)
+     real(r8), pointer :: stream_water_depth_lun (:,:) ! landunit depth of water in the streams (m)
 
    contains
 
@@ -174,6 +174,7 @@ contains
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
     use clm_varpar     , only : nlevmaxurbgrnd
+    use clm_varctl     , only : nelevzone
     !
     ! !ARGUMENTS:
     class(waterdiagnosticbulk_type), intent(inout) :: this
@@ -234,7 +235,7 @@ contains
     allocate(this%fdry_patch             (begp:endp))                     ; this%fdry_patch             (:)   = nan
     allocate(this%qflx_prec_intr_patch   (begp:endp))                     ; this%qflx_prec_intr_patch   (:)   = nan
     allocate(this%qflx_prec_grnd_col     (begc:endc))                     ; this%qflx_prec_grnd_col     (:)   = nan
-    allocate(this%stream_water_depth_lun (begl:endl))                     ; this%stream_water_depth_lun (:)   = nan
+    allocate(this%stream_water_depth_lun (begl:endl,nelevzone))           ; this%stream_water_depth_lun (:,:)   = nan
 
   end subroutine InitBulkAllocate
 
@@ -587,9 +588,9 @@ contains
          ptr_patch=this%qflx_prec_intr_patch, set_lake=0._r8)
 
     if (use_hillslope) then
-       this%stream_water_depth_lun(begl:endl) = spval
-       call hist_addfld1d (fname=this%info%fname('STREAM_WATER_DEPTH'), &
-            units='m',  avgflag='A', &
+       this%stream_water_depth_lun(begl:endl,:) = spval
+       call hist_addfld2d (fname=this%info%fname('STREAM_WATER_DEPTH'), &
+            units='m', type2d='nelevzone',  avgflag='A', &
             long_name=this%info%lname('depth of water in stream channel (hillslope hydrology only)'), &
             ptr_lunit=this%stream_water_depth_lun, l2g_scale_type='natveg',  default='inactive')
     endif
