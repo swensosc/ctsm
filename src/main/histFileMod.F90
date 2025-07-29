@@ -3130,7 +3130,8 @@ contains
     real(r8) :: zsoi_1d(1)
     type(bounds_type) :: bounds
     integer :: ier                        ! error status
-    integer, pointer :: icarr(:)          ! temporary
+    integer, pointer  :: icarr(:)          ! temporary
+    real(r8), pointer :: rcarr(:)          ! temporary
     character(len=*),parameter :: subname = 'htape_timeconst'
     !-----------------------------------------------------------------------
 
@@ -3317,17 +3318,18 @@ contains
              call ncd_io(varname='hillslope_colu' , data=icarr, dim1name=namec, ncid=nfid(t), flag='write')
 
              ! convert from landunit to column for history output
+             allocate(rcarr(bounds%begc:bounds%endc),stat=ier)
              do c = bounds%begc,bounds%endc
                 if (col%is_hillslope_column(c)) then
                    l = col%landunit(c)
-                   icarr(c) = lun%stream_channel_elev(l,col%hillslope_elevzone(c))
+                   rcarr(c) = lun%stream_channel_elev(l,col%hillslope_elevzone(c))
                 else
-                   icarr(c) = 0._r8
+                   rcarr(c) = 0._r8
                 endif
              enddo
-             call ncd_io(varname='stream_channel_elev' , data=icarr, dim1name=namec, ncid=nfid(t), flag='write')
+             call ncd_io(varname='stream_channel_elev' , data=rcarr, dim1name=namec, ncid=nfid(t), flag='write')
 
-             deallocate(icarr)
+             deallocate(rcarr,icarr)
           endif
 
           if(use_fates)then
