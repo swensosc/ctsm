@@ -207,7 +207,7 @@ contains
     real(r8), allocatable :: hill_width(:,:)    ! hillslope width  [m]
     real(r8), allocatable :: hill_elev(:,:)     ! hillslope height [m]
     real(r8), allocatable :: hill_bedrock(:,:)  ! hillslope bedrock depth [m]
-    real(r8), pointer     :: fstream_in(:,:)    ! read in - 1D - float
+    real(r8), pointer     :: fstream_in(:,:)    ! read in - 2D - float
 
     type(file_desc_t)     :: ncid               ! netcdf id
     logical               :: readvar            ! check whether variable on file
@@ -287,6 +287,12 @@ contains
     do l = bounds%begl,bounds%endl
        g = lun%gridcell(l)
        hill_ndx(l,:) = ihillslope_in(g,:)
+       ! set nhillslopes from hillslope_index values
+       if (lun%itype(l) == istsoil) then
+          lun%nhillslopes(l) = count(hill_ndx(l,:) > 0) * nelevzone / nhillslope
+          else
+          lun%nhillslopes(l) = 0
+       endif
     enddo
 
     call ncd_io(ncid=ncid, varname='elev_zone_index', flag='read', data=ihillslope_in, dim1name=grlnd, readvar=readvar)
@@ -430,6 +436,15 @@ contains
        deallocate(fstream_in)
     end if
 
+    !  Set hillslope fraction
+    do l = bounds%begl,bounds%endl
+       if (lun%itype(l) == istsoil) then
+          do nh = 1, nhillslope
+             lun%hillslope_fraction(l,nh) = pct_hillslope(l,nh)*0.01_r8
+          enddo
+       endif
+    enddo
+
     !  Set hillslope hydrology column level variables
     !  This needs to match how columns set up in subgridMod
     do l = bounds%begl,bounds%endl
@@ -546,8 +561,12 @@ contains
           do c = lun%coli(l), lun%colf(l)
              nh = col%hillslope_ndx(c)
              if (col%is_hillslope_column(c)) then
-                col%wtlunit(c) = (col%hill_area(c)/hillslope_area(nh)) &
-                     * (pct_hillslope(l,nh)*0.01_r8)
+                if (hillslope_area(nh) > 0._r8) then
+                   col%wtlunit(c) = (col%hill_area(c)/hillslope_area(nh)) &
+                        * (pct_hillslope(l,nh)*0.01_r8)
+                else
+                   col%wtlunit(c) = 0
+                end if
              end if
           enddo
        end if

@@ -3327,6 +3327,7 @@ contains
                    rcarr(c) = 0._r8
                 endif
              enddo
+
              call ncd_io(varname='stream_channel_elev' , data=rcarr, dim1name=namec, ncid=nfid(t), flag='write')
 
              deallocate(rcarr,icarr)
