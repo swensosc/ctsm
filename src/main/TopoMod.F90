@@ -230,6 +230,7 @@ contains
     real(r8), allocatable :: mean_intra_hillslope_elevation(:,:)
     real(r8), allocatable :: mean_inter_hillslope_elevation(:)
     real(r8), allocatable :: hillslope_elevation_zone(:)
+    real(r8), allocatable :: sum_hillslope_area(:)
     real(r8):: mhe_norm
 
     character(len=*), parameter :: subname = 'UpdateTopo'
@@ -259,11 +260,25 @@ contains
        allocate(hillslope_elevation_zone(nhillslope))
        mean_intra_hillslope_elevation(:,:) = 0._r8
        mean_inter_hillslope_elevation(:)   = 0._r8
+       allocate(sum_hillslope_area(begc:endc))
+       sum_hillslope_area(:) = 0
+
        ! first calculate mean elevation of elevation zones (inter-hillslope),
        ! then calculate mean hillslope elevation relative to itself (intra-hillslope)
-       ! identify elevation zone of each hillslope             
        do l = bounds%begl, bounds%endl
           if(lun%nhillslopes(l) > 0) then
+
+             ! calculate integrated area covered by each elevation band
+             do c = lun%coli(l), lun%colf(l)
+                if (col%hillslope_ndx(c) > 0) then
+                   where((col%hillslope_ndx(lun%coli(l):lun%colf(l)) == col%hillslope_ndx(c)) .and. &
+                        (col%hill_elev(lun%coli(l):lun%colf(l)) <= col%hill_elev(c)))
+                      sum_hillslope_area(lun%coli(l):lun%colf(l)) = sum_hillslope_area(lun%coli(l):lun%colf(l)) + col%hill_area(c)
+                   endwhere
+                endif
+             enddo
+
+             ! identify elevation zone of each hillslope
              hillslope_elevation_zone = 0
              do c = lun%coli(l), lun%colf(l)
                 if (col%is_hillslope_column(c) .and. col%cold(c)==ispval) then
@@ -287,7 +302,8 @@ contains
              enddo
           endif
        enddo
-       
+
+
        ! identify mean elevation of each hillslope (area weighted column mean)
        do ez = 1, nelevzone
           do l = bounds%begl, bounds%endl
@@ -296,8 +312,8 @@ contains
                 if (col%is_hillslope_column(c)) then
                    if (col%hillslope_elevzone(c) == ez) then
                       mean_intra_hillslope_elevation(l,ez) = mean_intra_hillslope_elevation(l,ez) &
-                           + col%hill_elev(c)*col%hill_area(c)
-                      mhe_norm = mhe_norm + col%hill_area(c)
+                           + col%hill_elev(c)*sum_hillslope_area(c)
+                      mhe_norm = mhe_norm + sum_hillslope_area(c)
 
                    endif
                 endif
