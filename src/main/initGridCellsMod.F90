@@ -208,6 +208,7 @@ contains
     use clm_instur, only : wt_lunit, wt_nat_patch, veg_subtype_patch
     use subgridMod, only : subgrid_get_info_natveg, natveg_patch_exists
     use clm_varpar, only : natpft_lb, natpft_ub, natpft_size
+    use clm_varpar, only : surfpft_lb, surfpft_ub
     !
     ! !ARGUMENTS:
     integer , intent(in)    :: ltype             ! landunit type
@@ -227,6 +228,7 @@ contains
     real(r8) :: wtlunit2gcell                    ! landunit weight in gridcell
     real(r8) :: wtcol2lunit                      ! column weight in landunit
     real(r8) :: p_wt                             ! patch weight (0-1)
+    integer  :: vtype
     !------------------------------------------------------------------------
 
     ! Set decomposition properties
@@ -264,11 +266,14 @@ contains
           do m = natpft_lb,natpft_ub
              if (natveg_patch_exists(gi, m)) then
                 if(use_fates .and. .not.use_fates_sp)then
-                   p_wt = 1.0_r8/real(natpft_size,r8)
+                   ! if fates is active, number of patches will not match surface data file, so use dummy value for vtype
+                   p_wt  = 1.0_r8/real(natpft_size,r8)
+                   vtype = 1 ! arbitrary dummy value for fates
                 else
-                   p_wt = wt_nat_patch(gi,m)
+                   p_wt  = wt_nat_patch(gi,m)
+                   vtype = veg_subtype_patch(gi,m)
                 end if
-                call add_patch(pi=pi, ci=ci, pndx=(m-natpft_lb), ptype=veg_subtype_patch(gi,m), wtcol=p_wt)
+                call add_patch(pi=pi, ci=ci, pndx=(m-natpft_lb), ptype=vtype, wtcol=p_wt)
                 npatches_added = npatches_added + 1
              end if
           end do

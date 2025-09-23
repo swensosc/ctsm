@@ -121,7 +121,7 @@ module pftconMod
      logical , allocatable :: is_grass      (:)   ! grass or not?
      ! todo: could put phenology type on parameter file
      character(len=pftname_len), allocatable :: pftname(:)  ! pft subtype description
-     integer , allocatable :: patch_lai_scalar (:)   ! patch lai scalar
+     real(r8), allocatable :: patch_lai_scalar (:)   ! patch lai scalar
 
      integer , allocatable :: pft_type      (:)   ! pft type
 
@@ -416,7 +416,7 @@ contains
     allocate( this%is_shrub      (0:mxpft)); this%is_shrub (:) = .false.
     allocate( this%is_grass      (0:mxpft)); this%is_grass (:) = .false.
     allocate( this%pftname       (0:mxpft)); this%pftname  (:) = ''
-    allocate( this%patch_lai_scalar(0:mxpft)); this%patch_lai_scalar (:) = 1
+    allocate( this%patch_lai_scalar(0:mxpft)); this%patch_lai_scalar (:) = 1.0_r8
     allocate( this%pft_type      (0:mxpft)); this%pft_type (:) = 0
 
     allocate( this%dleaf         (0:mxpft) )       

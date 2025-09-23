@@ -812,7 +812,7 @@ module CLMFatesInterfaceMod
       use FatesInterfaceTypesMod, only : numpft_fates => numpft
       use FatesParameterDerivedMod, only : param_derived
       use subgridMod, only :  natveg_patch_exists
-      use clm_instur       , only : wt_nat_patch
+      use clm_instur       , only : wt_nat_patch, veg_subtype_patch
       use FATESFireFactoryMod , only: create_fates_fire_data_method
 
       ! Input Arguments
@@ -991,9 +991,11 @@ module CLMFatesInterfaceMod
                   ! initialize static layers for reduced complexity FATES versions from HLM
                   ! maybe make this into a subroutine of it's own later.
                   this%fates(nc)%bc_in(s)%pft_areafrac(:)=0._r8
+                  this%fates(nc)%bc_in(s)%pft_itype(:)=0
                   do m = surfpft_lb,surfpft_ub
                      ft = m - surfpft_lb
                      this%fates(nc)%bc_in(s)%pft_areafrac(ft)=wt_nat_patch(g,m)
+                     this%fates(nc)%bc_in(s)%pft_itype(ft)=veg_subtype_patch(g,m)
                   end do
 
                   if (abs(sum(this%fates(nc)%bc_in(s)%pft_areafrac(surfpft_lb:surfpft_ub)) - 1.0_r8) >    sum_to_1_tol) then
@@ -1269,7 +1271,8 @@ module CLMFatesInterfaceMod
          if(use_fates_sp)then
            do ft = surfpft_lb,surfpft_ub
                ! here we are mapping from P space in the HLM to FT space in the sp_input arrays.
-               p = ft + col%patchi(c) ! for an FT of 1 we want to use
+              p = ft + col%patchi(c) ! for an FT of 1 we want to use
+
                this%fates(nc)%bc_in(s)%hlm_sp_tlai(ft) = canopystate_inst%tlai_patch(p)
                this%fates(nc)%bc_in(s)%hlm_sp_tsai(ft) = canopystate_inst%tsai_patch(p)
                this%fates(nc)%bc_in(s)%hlm_sp_htop(ft) = canopystate_inst%htop_patch(p)

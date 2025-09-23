@@ -216,7 +216,8 @@ contains
        natpft_lb   = 0
        natpft_ub   = natpft_lb + natpft_size - 1
        surfpft_lb  = 0
-       surfpft_ub  = surf_numpft+surf_numcft-1
+!       surfpft_ub  = surf_numpft+surf_numcft-1
+       surfpft_ub  = surfpft_lb + surf_numpatch - 1
        surfcft_lb  = 1
        surfcft_ub  = surf_numcft
        
