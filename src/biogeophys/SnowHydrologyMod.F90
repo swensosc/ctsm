@@ -2110,6 +2110,8 @@ contains
     real(r8):: zwliq(water_inst%bulk_and_tracers_beg:water_inst%bulk_and_tracers_end, bounds%begc:bounds%endc)  ! total liquid water in snow, for bulk and each tracer
     real(r8):: dzminloc(nlevsno)  ! minimum thickness of snow layer (local)
     real(r8):: dtime                            !land model time step (sec)
+    real(r8), parameter :: layer_mininum_mass = 0.01_r8 ! (kg/m2)
+    integer :: j_src, j_dst
 
     !-----------------------------------------------------------------------
 
@@ -2184,71 +2186,64 @@ contains
 
        do wi = water_inst%bulk_and_tracers_beg, water_inst%bulk_and_tracers_end
           associate(w => water_inst%bulk_and_tracers(wi))
-
-          w%waterflux_inst%qflx_sl_top_soil_col(c) = 0._r8
-
+          w%waterflux_inst%qflx_liq_snow_removal_col(c) = 0._r8
           end associate
        end do
     end do
 
     ! The following loop is NOT VECTORIZED
 
+    ! Check individual layers, when ice becomes less than layer_mininum_mass, combine layer with neighboring layer
     do fc = 1, num_snowc
        c = filter_snowc(fc)
        l = col%landunit(c)
        do j = msn_old(c)+1,0
-          ! use 0.01 to avoid runaway ice buildup
-          if (h2osoi_ice_bulk(c,j) <= .01_r8) then
-             if (j < 0 .or. (ltype(l) == istsoil .or. urbpoi(l) .or. ltype(l) == istcrop)) then
-                ! Note that, for landunits other than soil, crop and urban, the above
-                ! conditional prevents us from trying to transfer the bottom snow layer's
-                ! water content to the soil, since there is no soil to receive ti.
 
-                do wi = water_inst%bulk_and_tracers_beg, water_inst%bulk_and_tracers_end
-                   associate(w => water_inst%bulk_and_tracers(wi))
+          ! if j=0 and only one snow layer remains, do nothing.  It will be removed in later loop.
+          if( j == 0 .and. snl(c) >= -1 ) then
+             exit
+          endif
 
-                   w%waterstate_inst%h2osoi_liq_col(c,j+1) = &
-                        w%waterstate_inst%h2osoi_liq_col(c,j+1) + &
-                        w%waterstate_inst%h2osoi_liq_col(c,j)
-
-                   w%waterstate_inst%h2osoi_ice_col(c,j+1) = &
-                        w%waterstate_inst%h2osoi_ice_col(c,j+1) + &
-                        w%waterstate_inst%h2osoi_ice_col(c,j)
-
-                   end associate
-                end do
-             end if
-
+          if (h2osoi_ice_bulk(c,j) <= layer_mininum_mass) then
+             ! for j<0, add to layer below; for j=0, add to layer above
+             j_src = j
              if (j < 0) then
-                dz(c,j+1) = dz(c,j+1) + dz(c,j)
+                j_dst = j+1
+             else ! j=0
+                j_dst = j-1
+             endif
 
-                mss_bcphi(c,j+1) = mss_bcphi(c,j+1)  + mss_bcphi(c,j)
-                mss_bcpho(c,j+1) = mss_bcpho(c,j+1)  + mss_bcpho(c,j)
-                mss_ocphi(c,j+1) = mss_ocphi(c,j+1)  + mss_ocphi(c,j)
-                mss_ocpho(c,j+1) = mss_ocpho(c,j+1)  + mss_ocpho(c,j)
-                mss_dst1(c,j+1)  = mss_dst1(c,j+1)   + mss_dst1(c,j)
-                mss_dst2(c,j+1)  = mss_dst2(c,j+1)   + mss_dst2(c,j)
-                mss_dst3(c,j+1)  = mss_dst3(c,j+1)   + mss_dst3(c,j)
-                mss_dst4(c,j+1)  = mss_dst4(c,j+1)   + mss_dst4(c,j)
+             do wi = water_inst%bulk_and_tracers_beg, water_inst%bulk_and_tracers_end
+                associate(w => water_inst%bulk_and_tracers(wi))
 
-                ! NOTE: Temperature, and similarly snw_rds, of the
-                ! underlying snow layer are NOT adjusted in this case.
-                ! Because the layer being eliminated has a small mass,
-                ! this should not make a large difference, but it
-                ! would be more thorough to do so.
-             end if
+                w%waterstate_inst%h2osoi_liq_col(c,j_dst) = &
+                     w%waterstate_inst%h2osoi_liq_col(c,j_dst) + &
+                     w%waterstate_inst%h2osoi_liq_col(c,j_src)
 
-             if (j == 0) then
+                w%waterstate_inst%h2osoi_ice_col(c,j_dst) = &
+                     w%waterstate_inst%h2osoi_ice_col(c,j_dst) + &
+                     w%waterstate_inst%h2osoi_ice_col(c,j_src)
 
-                do wi = water_inst%bulk_and_tracers_beg, water_inst%bulk_and_tracers_end
-                   associate(w => water_inst%bulk_and_tracers(wi))
+                end associate
 
-                   w%waterflux_inst%qflx_sl_top_soil_col(c) = &
-                        (w%waterstate_inst%h2osoi_liq_col(c,j) + w%waterstate_inst%h2osoi_ice_col(c,j))/dtime
+             end do
 
-                   end associate
-                end do
-             end if
+             dz(c,j_dst) = dz(c,j_dst) + dz(c,j_src)
+
+             mss_bcphi(c,j_dst) = mss_bcphi(c,j_dst)  + mss_bcphi(c,j_src)
+             mss_bcpho(c,j_dst) = mss_bcpho(c,j_dst)  + mss_bcpho(c,j_src)
+             mss_ocphi(c,j_dst) = mss_ocphi(c,j_dst)  + mss_ocphi(c,j_src)
+             mss_ocpho(c,j_dst) = mss_ocpho(c,j_dst)  + mss_ocpho(c,j_src)
+             mss_dst1(c,j_dst)  = mss_dst1(c,j_dst)   + mss_dst1(c,j_src)
+             mss_dst2(c,j_dst)  = mss_dst2(c,j_dst)   + mss_dst2(c,j_src)
+             mss_dst3(c,j_dst)  = mss_dst3(c,j_dst)   + mss_dst3(c,j_src)
+             mss_dst4(c,j_dst)  = mss_dst4(c,j_dst)   + mss_dst4(c,j_src)
+
+             ! NOTE: Temperature, and similarly snw_rds, of the
+             ! underlying snow layer are NOT adjusted in this case.
+             ! Because the layer being eliminated has a small mass,
+             ! this should not make a large difference, but it
+             ! would be more thorough to do so.
 
              ! shift all elements above this down one.
              if (j > snl(c)+1 .and. snl(c) < -1) then
@@ -2262,7 +2257,7 @@ contains
                       end associate
                    end do
 
-                   t_soisno(c,i)   = t_soisno(c,i-1)
+                   t_soisno(c,i) = t_soisno(c,i-1)
 
                    mss_bcphi(c,i)   = mss_bcphi(c,i-1)
                    mss_bcpho(c,i)   = mss_bcpho(c,i-1)
@@ -2274,7 +2269,7 @@ contains
                    mss_dst4(c,i)    = mss_dst4(c,i-1)
                    snw_rds(c,i)     = snw_rds(c,i-1)
 
-                   dz(c,i)         = dz(c,i-1)
+                   dz(c,i) = dz(c,i-1)
                 end do
              end if
              snl(c) = snl(c) + 1
@@ -2338,13 +2333,27 @@ contains
                 associate(w => water_inst%bulk_and_tracers(wi))
 
                 ! The explicit snow pack is disappearing. Transfer ice to
-                ! h2osno_no_layers and (for soil landunits) transfer liquid water from
-                ! snow pack to layer 1 (soil).
+                ! h2osno_no_layers and (for soil landunits) transfer liquid 
+                ! water from snow pack to layer 1 (soil).
+
+                !scs: create fluxes for these transfers
 
                 w%waterstate_inst%h2osno_no_layers_col(c) = zwice(wi,c)
-                if (ltype(l) == istsoil .or. urbpoi(l) .or. ltype(l) == istcrop) then
+
+                !scs: need logicals to exclude lake/wetland/glacier
+                ! for non-urban send water to h2osfc instead of soil
+                w%waterflux_inst%qflx_liq_snow_removal_col(c) = zwliq(wi,c)/dtime
+
+                if (ltype(l) == istsoil .or. ltype(l) == istcrop) then
+                   w%waterstate_inst%h2osfc_col(c) = &
+                        w%waterstate_inst%h2osfc_col(c) + &
+                   w%waterflux_inst%qflx_liq_snow_removal_col(c)*dtime
+                end if
+                if (urbpoi(l)) then
                    w%waterstate_inst%h2osoi_liq_col(c,1) = &
-                        w%waterstate_inst%h2osoi_liq_col(c,1) + zwliq(wi,c)
+                        w%waterstate_inst%h2osoi_liq_col(c,1) +  &
+                   w%waterflux_inst%qflx_liq_snow_removal_col(c)*dtime
+                   ! try adding to restart, and including in qflx_rain_plus_snomelt_col
                 end if
 
                 end associate
@@ -2392,69 +2401,67 @@ contains
           do i = msn_old(c)+1,0
              if ((frac_sno_eff(c)*dz(c,i) < dzminloc(mssi(c))) .or. &
                   ((h2osoi_ice_bulk(c,i) + h2osoi_liq_bulk(c,i))/(frac_sno_eff(c)*dz(c,i)) < 50._r8)) then
+
                 if (i == snl(c)+1) then
                    ! If top node is removed, combine with bottom neighbor.
-                   neibor = i + 1
+                   j_dst = i + 1
+                   j_src = i
                 else if (i == 0) then
-                   ! If the bottom neighbor is not snow, combine with the top neighbor.
-                   neibor = i - 1
+                   ! If the bottom node is removed, combine with upper neighbor.
+                   j_dst = i
+                   j_src = i - 1
                 else
                    ! If none of the above special cases apply, combine with the thinnest neighbor
-                   neibor = i + 1
-                   if ((dz(c,i-1)+dz(c,i)) < (dz(c,i+1)+dz(c,i))) neibor = i-1
-                end if
-
-                ! Node l and j are combined and stored as node j.
-                if (neibor > i) then
-                   j = neibor
-                   l = i
-                else
-                   j = i
-                   l = neibor
+                   if ( dz(c,i-1) < dz(c,i+1) ) then
+                      j_dst = i
+                      j_src = i-1
+                   else
+                      j_dst = i + 1
+                      j_src = i
+                   endif
                 end if
 
                 ! this should be included in 'Combo' for consistency,
                 ! but functionally it is the same to do it here
-                mss_bcphi(c,j)=mss_bcphi(c,j)+mss_bcphi(c,l)
-                mss_bcpho(c,j)=mss_bcpho(c,j)+mss_bcpho(c,l)
-                mss_ocphi(c,j)=mss_ocphi(c,j)+mss_ocphi(c,l)
-                mss_ocpho(c,j)=mss_ocpho(c,j)+mss_ocpho(c,l)
-                mss_dst1(c,j)=mss_dst1(c,j)+mss_dst1(c,l)
-                mss_dst2(c,j)=mss_dst2(c,j)+mss_dst2(c,l)
-                mss_dst3(c,j)=mss_dst3(c,j)+mss_dst3(c,l)
-                mss_dst4(c,j)=mss_dst4(c,j)+mss_dst4(c,l)
+                mss_bcphi(c,j_dst)=mss_bcphi(c,j_dst)+mss_bcphi(c,j_src)
+                mss_bcpho(c,j_dst)=mss_bcpho(c,j_dst)+mss_bcpho(c,j_src)
+                mss_ocphi(c,j_dst)=mss_ocphi(c,j_dst)+mss_ocphi(c,j_src)
+                mss_ocpho(c,j_dst)=mss_ocpho(c,j_dst)+mss_ocpho(c,j_src)
+                mss_dst1(c,j_dst)=mss_dst1(c,j_dst)+mss_dst1(c,j_src)
+                mss_dst2(c,j_dst)=mss_dst2(c,j_dst)+mss_dst2(c,j_src)
+                mss_dst3(c,j_dst)=mss_dst3(c,j_dst)+mss_dst3(c,j_src)
+                mss_dst4(c,j_dst)=mss_dst4(c,j_dst)+mss_dst4(c,j_src)
 
                 ! mass-weighted combination of effective grain size:
-                snw_rds(c,j) = (snw_rds(c,j)*(h2osoi_liq_bulk(c,j)+h2osoi_ice_bulk(c,j)) + &
-                     snw_rds(c,l)*(h2osoi_liq_bulk(c,l)+h2osoi_ice_bulk(c,l))) / &
-                     (h2osoi_liq_bulk(c,j)+h2osoi_ice_bulk(c,j)+h2osoi_liq_bulk(c,l)+h2osoi_ice_bulk(c,l))
+                snw_rds(c,j_dst) = (snw_rds(c,j_dst)*(h2osoi_liq_bulk(c,j_dst)+h2osoi_ice_bulk(c,j_dst)) + &
+                     snw_rds(c,j_src)*(h2osoi_liq_bulk(c,j_src)+h2osoi_ice_bulk(c,j_src))) / &
+                     (h2osoi_liq_bulk(c,j_dst)+h2osoi_ice_bulk(c,j_dst)+h2osoi_liq_bulk(c,j_src)+h2osoi_ice_bulk(c,j_src))
 
-                call Combo (dz(c,j), h2osoi_liq_bulk(c,j), h2osoi_ice_bulk(c,j), &
-                     t_soisno(c,j), dz(c,l), h2osoi_liq_bulk(c,l), h2osoi_ice_bulk(c,l), t_soisno(c,l) )
+                call Combo (dz(c,j_dst), h2osoi_liq_bulk(c,j_dst), h2osoi_ice_bulk(c,j_dst), &
+                     t_soisno(c,j_dst), dz(c,j_src), h2osoi_liq_bulk(c,j_src), h2osoi_ice_bulk(c,j_src), t_soisno(c,j_src) )
 
                 ! Bulk already combined in Combo; here we just need to loop over tracers
                 ! and do a similar combination for them.
                 do wi = water_inst%tracers_beg, water_inst%tracers_end
                    associate(w => water_inst%bulk_and_tracers(wi))
 
-                   w%waterstate_inst%h2osoi_ice_col(c,j) = &
-                        w%waterstate_inst%h2osoi_ice_col(c,j) + w%waterstate_inst%h2osoi_ice_col(c,l)
-                   w%waterstate_inst%h2osoi_liq_col(c,j) = &
-                        w%waterstate_inst%h2osoi_liq_col(c,j) + w%waterstate_inst%h2osoi_liq_col(c,l)
+                   w%waterstate_inst%h2osoi_ice_col(c,j_dst) = &
+                        w%waterstate_inst%h2osoi_ice_col(c,j_dst) + w%waterstate_inst%h2osoi_ice_col(c,j_src)
+                   w%waterstate_inst%h2osoi_liq_col(c,j_dst) = &
+                        w%waterstate_inst%h2osoi_liq_col(c,j_dst) + w%waterstate_inst%h2osoi_liq_col(c,j_src)
 
                    end associate
                 end do
 
                 ! Now shift all elements above this down one.
-                if (j-1 > snl(c)+1) then
+                if (j_dst-1 > snl(c)+1) then
 
-                   do k = j-1, snl(c)+2, -1
+                   do k = j_dst-1, snl(c)+2, -1
                       do wi = water_inst%bulk_and_tracers_beg, water_inst%bulk_and_tracers_end
                          associate(w => water_inst%bulk_and_tracers(wi))
 
                          w%waterstate_inst%h2osoi_ice_col(c,k) = w%waterstate_inst%h2osoi_ice_col(c,k-1)
                          w%waterstate_inst%h2osoi_liq_col(c,k) = w%waterstate_inst%h2osoi_liq_col(c,k-1)
-
                          end associate
                       end do
 

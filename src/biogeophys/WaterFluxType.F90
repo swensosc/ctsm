@@ -70,16 +70,19 @@ module WaterFluxType
      real(r8), pointer :: qflx_liqdew_to_top_layer_col(:)     ! col rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
 
      real(r8), pointer :: qflx_infl_col            (:)   ! col infiltration (mm H2O /s)
+     real(r8), pointer :: qflx_exfl_col            (:)   ! col exfiltration (mm H2O /s)
      real(r8), pointer :: qflx_surf_col            (:)   ! col total surface runoff (mm H2O /s)
      real(r8), pointer :: qflx_drain_col           (:)   ! col sub-surface runoff (mm H2O /s)
      real(r8), pointer :: qflx_latflow_in_col      (:)   ! col hillslope lateral flow input (mm/s)
      real(r8), pointer :: qflx_latflow_out_col     (:)   ! col hillslope lateral flow output (mm/s)
      real(r8), pointer :: volumetric_discharge_col (:)   ! col hillslope discharge (m3/s)
      real(r8), pointer :: volumetric_streamflow_lun(:)   ! lun stream discharge (m3/s)
-     real(r8), pointer :: qflx_drain_perched_col   (:)   ! col sub-surface runoff from perched wt (mm H2O /s)                                                                                                      
+     real(r8), pointer :: qflx_drain_perched_col   (:)   ! col sub-surface runoff from perched wt (mm H2O /s)
+     real(r8), pointer :: qflx_drain_lyr_col(:,:)        ! col subsurface runoff flux, separated by layer (mm H2O/s)
+
      real(r8), pointer :: qflx_top_soil_col        (:)   ! col net water input into soil from top (mm/s)
      real(r8), pointer :: qflx_floodc_col          (:)   ! col flood water flux at column level
-     real(r8), pointer :: qflx_sl_top_soil_col     (:)   ! col liquid water + ice from layer above soil to top soil layer or sent to qflx_qrgwl (mm H2O/s)
+     real(r8), pointer :: qflx_liq_snow_removal_col(:)   ! col liquid water from removal of explicit snowpack (mm H2O/s)
      real(r8), pointer :: qflx_snomelt_col         (:)   ! col snow melt (mm H2O /s)
      real(r8), pointer :: qflx_qrgwl_col           (:)   ! col qflx_surf at glaciers, wetlands, lakes
      real(r8), pointer :: qflx_runoff_col          (:)   ! col total runoff (qflx_drain+qflx_surf+qflx_qrgwl) (mm H2O /s)
@@ -273,6 +276,9 @@ contains
     call AllocateVar1d(var = this%qflx_infl_col, name = 'qflx_infl_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
+    call AllocateVar1d(var = this%qflx_exfl_col, name = 'qflx_exfl_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = subgrid_level_column)
     call AllocateVar1d(var = this%qflx_surf_col, name = 'qflx_surf_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
@@ -294,6 +300,11 @@ contains
     call AllocateVar1d(var = this%volumetric_streamflow_lun, name = 'volumetric_streamflow_lun', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_landunit)
+    call AllocateVar2d(var = this%qflx_drain_lyr_col, name = 'qflx_drain_lyr_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = subgrid_level_column, &
+         dim2beg = 1, dim2end = nlevsoi)
+
     call AllocateVar1d(var = this%qflx_top_soil_col, name = 'qflx_top_soil_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
@@ -322,7 +333,7 @@ contains
     call AllocateVar1d(var = this%qflx_floodc_col, name = 'qflx_floodc_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
-    call AllocateVar1d(var = this%qflx_sl_top_soil_col, name = 'qflx_sl_top_soil_col', &
+    call AllocateVar1d(var = this%qflx_liq_snow_removal_col, name = 'qflx_liq_snow_removal_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
     call AllocateVar1d(var = this%qflx_runoff_col, name = 'qflx_runoff_col', &
@@ -957,6 +968,18 @@ contains
     if (flag == 'read' .and. .not. readvar) then
        ! initial run, not restart: initialize qflx_snow_drain to zero
        this%qflx_snow_drain_col(bounds%begc:bounds%endc) = 0._r8
+    endif
+
+    call restartvar(ncid=ncid, flag=flag, &
+         varname=this%info%fname('qflx_liq_snow_removal')//':'//this%info%fname('qflx_snow_melt'), &
+         xtype=ncd_double,  &
+         dim1name='column', &
+         long_name=this%info%lname('drainage from snow column'), &
+         units='mm/s', &
+         interpinic_flag='interp', readvar=readvar, data=this%qflx_liq_snow_removal_col)
+    if (flag == 'read' .and. .not. readvar) then
+       ! initial run, not restart: initialize qflx_liq_snow_removal to zero
+       this%qflx_liq_snow_removal_col(bounds%begc:bounds%endc) = 0._r8
     endif
 
     call this%qflx_liq_dynbal_dribbler%Restart(bounds, ncid, flag)
