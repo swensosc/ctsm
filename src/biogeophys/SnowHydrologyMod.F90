@@ -1060,6 +1060,25 @@ contains
 
     do i = water_inst%bulk_and_tracers_beg, water_inst%bulk_and_tracers_end
        associate(w => water_inst%bulk_and_tracers(i))
+
+       ! snowwater is called twice; once for lake, once for nolake
+       ! so to get all columns for a given call (but not the other call), need to loop over both snow and nosnow
+       do fc = 1, num_snowc
+          c = filter_snowc(fc)
+          ! do not save input for glc and lake; immediately sent to runoff
+          if ((col%lun_itype(c) == istice) .or. (col%lun_itype(c) == istdlak)) then
+             w%waterflux_inst%qflx_liq_snow_removal_col(c) = 0._r8
+             w%waterflux_inst%qflx_liq_snow_input_col(c) = 0._r8
+          endif
+       enddo
+       do fc = 1, num_nosnowc
+          c = filter_nosnowc(fc)
+          if ((col%lun_itype(c) == istice) .or. (col%lun_itype(c) == istdlak)) then
+             w%waterflux_inst%qflx_liq_snow_removal_col(c) = 0._r8
+             w%waterflux_inst%qflx_liq_snow_input_col(c) = 0._r8
+          endif
+       enddo
+
        call UpdateState_TopLayerFluxes(bounds, num_snowc, filter_snowc, &
             ! Inputs
             name           = water_inst%GetBulkOrTracerName(i), &
@@ -2187,6 +2206,7 @@ contains
        do wi = water_inst%bulk_and_tracers_beg, water_inst%bulk_and_tracers_end
           associate(w => water_inst%bulk_and_tracers(wi))
           w%waterflux_inst%qflx_liq_snow_removal_col(c) = 0._r8
+          w%waterflux_inst%qflx_ice_snow_removal_col(c) = 0._r8
           end associate
        end do
     end do
@@ -2333,29 +2353,13 @@ contains
                 associate(w => water_inst%bulk_and_tracers(wi))
 
                 ! The explicit snow pack is disappearing. Transfer ice to
-                ! h2osno_no_layers and (for soil landunits) transfer liquid 
-                ! water from snow pack to layer 1 (soil).
+                ! h2osno_no_layers and transfer liquid water to h2osno_liq_residual
 
-                !scs: create fluxes for these transfers
+                w%waterflux_inst%qflx_ice_snow_removal_col(c) = zwice(wi,c)/dtime
+                w%waterstate_inst%h2osno_no_layers_col(c) = w%waterflux_inst%qflx_ice_snow_removal_col(c)*dtime
 
-                w%waterstate_inst%h2osno_no_layers_col(c) = zwice(wi,c)
-
-                !scs: need logicals to exclude lake/wetland/glacier
-                ! for non-urban send water to h2osfc instead of soil
                 w%waterflux_inst%qflx_liq_snow_removal_col(c) = zwliq(wi,c)/dtime
-
-                if (ltype(l) == istsoil .or. ltype(l) == istcrop) then
-                   w%waterstate_inst%h2osfc_col(c) = &
-                        w%waterstate_inst%h2osfc_col(c) + &
-                   w%waterflux_inst%qflx_liq_snow_removal_col(c)*dtime
-                end if
-                if (urbpoi(l)) then
-                   w%waterstate_inst%h2osoi_liq_col(c,1) = &
-                        w%waterstate_inst%h2osoi_liq_col(c,1) +  &
-                   w%waterflux_inst%qflx_liq_snow_removal_col(c)*dtime
-                   ! try adding to restart, and including in qflx_rain_plus_snomelt_col
-                end if
-
+                w%waterstate_inst%h2osno_liq_residual_col(c) = w%waterflux_inst%qflx_liq_snow_removal_col(c)*dtime
                 end associate
              end do
 

@@ -113,6 +113,7 @@ contains
          qflx_surf          => waterfluxbulk_inst%qflx_surf_col          , & ! surface runoff (mm H2O /s)      
          qflx_infl          => waterfluxbulk_inst%qflx_infl_col          , & ! infiltration (mm H2O /s)   
          qflx_qrgwl         => waterfluxbulk_inst%qflx_qrgwl_col         , & ! qflx_surf at glaciers, wetlands, lakes
+         qflx_liq_snow_removal => waterfluxbulk_inst%qflx_liq_snow_removal_col, & ! liquid water from removal of explicit snowpack; current timestep (mm H2O/s)
          qflx_latflow_out   => waterfluxbulk_inst%qflx_latflow_out_col   , & ! lateral subsurface flow
          qflx_runoff        => waterfluxbulk_inst%qflx_runoff_col        , & ! total runoff (qflx_drain+qflx_surf+qflx_qrgwl) (mm H2O /s)
          qflx_runoff_u      => waterfluxbulk_inst%qflx_runoff_u_col      , & ! Urban total runoff (qflx_drain+qflx_surf) (mm H2O /s)
@@ -202,6 +203,10 @@ contains
             qflx_qrgwl(c) = forc_rain(c) + forc_snow(c) + qflx_floodg(g) - qflx_evap_tot(c) - qflx_snwcp_ice(c) - &
                  qflx_snwcp_discarded_ice(c) - qflx_snwcp_discarded_liq(c) - &
                  (endwb(c)-begwb(c))/dtime
+
+            if (lun%itype(l)==istice) then
+               qflx_qrgwl(c) = qflx_qrgwl(c) - qflx_liq_snow_removal(c)
+            endif
 
          else if (lun%urbpoi(l) .and. ctype(c) /= icol_road_perv) then
 

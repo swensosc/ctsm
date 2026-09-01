@@ -35,6 +35,7 @@ module WaterStateType
      class(water_info_base_type), pointer :: info
 
      real(r8), pointer :: h2osno_no_layers_col   (:)   ! col snow that is not resolved into layers; this is non-zero only if there is too little snow for there to be explicit snow layers (mm H2O)
+     real(r8), pointer :: h2osno_liq_residual_col(:)   ! col liquid water remaining after explicit snowpack is removed; this is stored temporarily before being added to inputs in the subsequent time step (mm H2O)
      real(r8), pointer :: h2osoi_liq_col         (:,:) ! col liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)    
      real(r8), pointer :: h2osoi_ice_col         (:,:) ! col ice lens (kg/m2) (new) (-nlevsno+1:nlevgrnd)    
      real(r8), pointer :: h2osoi_vol_col         (:,:) ! col volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]  (nlevgrnd)
@@ -124,6 +125,9 @@ contains
     !------------------------------------------------------------------------
 
     call AllocateVar1d(var = this%h2osno_no_layers_col, name = 'h2osno_no_layers_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = subgrid_level_column)
+    call AllocateVar1d(var = this%h2osno_liq_residual_col, name = 'h2osno_liq_residual_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
     call AllocateVar2d(var = this%h2osoi_vol_col, name = 'h2osoi_vol_col', &
@@ -359,6 +363,7 @@ contains
 
     associate(snl => col%snl) 
 
+      this%h2osno_liq_residual_col(bounds%begc:bounds%endc) = 0._r8
       this%h2osfc_col(bounds%begc:bounds%endc) = 0._r8
       this%snocan_patch(bounds%begp:bounds%endp) = 0._r8
       this%liqcan_patch(bounds%begp:bounds%endp) = 0._r8
@@ -655,6 +660,14 @@ contains
           end if
        end do
     end if
+
+    call restartvar(ncid=ncid, flag=flag, &
+         varname=this%info%fname('H2OSNO_LIQ_RESID'), &
+         xtype=ncd_double,  &
+         dim1name='column', &
+         long_name=this%info%lname('residual liquid water after snowpack removal'), &
+         units='kg/m2', &
+         interpinic_flag='interp', readvar=readvar, data=this%h2osno_liq_residual_col)
 
     call restartvar(ncid=ncid, flag=flag, &
          varname=this%info%fname('H2OSOI_LIQ'), &

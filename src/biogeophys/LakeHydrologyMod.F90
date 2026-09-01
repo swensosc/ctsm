@@ -157,6 +157,7 @@ contains
          forc_snow            =>  b_wateratm2lnd_inst%forc_snow_downscaled_col , & ! Input:  [real(r8) (:)   ]  snow rate [mm/s]                        
          qflx_floodg          =>  b_wateratm2lnd_inst%forc_flood_grc           , & ! Input:  [real(r8) (:)   ]  gridcell flux of flood water from RTM   
          
+         qflx_liq_snow_removal => b_waterflux_inst%qflx_liq_snow_removal_col   , & ! Input: [real(r8) (:)   ]  snow remaining after explicit snowpack removal (mm H2O /s)
          watsat               =>  soilstate_inst%watsat_col             , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
          
          t_lake               =>  temperature_inst%t_lake_col           , & ! Input:  [real(r8) (:,:) ]  lake temperature (Kelvin)             
@@ -677,7 +678,7 @@ contains
 
        ! Insure water balance using qflx_qrgwl
        ! qflx_snwcp_ice(c) has been computed in routine SnowCapping
-       qflx_qrgwl(c)     = forc_rain(c) + forc_snow(c) - qflx_evap_tot(p) - qflx_snwcp_ice(c) - &
+       qflx_qrgwl(c)     = forc_rain(c) + forc_snow(c) - qflx_liq_snow_removal(c) - qflx_evap_tot(p) - qflx_snwcp_ice(c) - &
             qflx_snwcp_discarded_ice(c) - qflx_snwcp_discarded_liq(c) - &
             (endwb(c)-begwb(c))/dtime + qflx_floodg(g)
        qflx_floodc(c)    = qflx_floodg(g)
