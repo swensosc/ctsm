@@ -49,6 +49,8 @@ module SoilStateInitTimeConstMod
      real(r8) :: sand_pf             ! Perturbation factor (via addition) for percent sand (percent)
      real(r8) :: clay_pf             ! Perturbation factor (via addition) for percent clay of clay+silt (percent)
      real(r8) :: om_frac_sf          ! Scale factor for organic matter fraction (unitless)
+     real(r8) :: wilting_point_smp   ! soil matric potential at wilting point (mm)
+     real(r8) :: field_capacity_smp  ! soil matric potential at field capacity (mm)
   end type params_type
   type(params_type), private ::  params_inst
 
@@ -160,7 +162,11 @@ contains
     call readNcdioScalar(ncid, 'clay_pf', subname, params_inst%clay_pf)
     ! Scale factor for organic matter fraction (unitless)
     call readNcdioScalar(ncid, 'om_frac_sf', subname, params_inst%om_frac_sf)
-
+    ! Wilting point matric potential for watdry
+    call readNcdioScalar(ncid, 'wilting_point_smp', subname, params_inst%wilting_point_smp)
+    ! Field capacity matric potential for watopt
+    call readNcdioScalar(ncid, 'field_capacity_smp', subname, params_inst%field_capacity_smp)
+    
   end subroutine readParams
 
   !-----------------------------------------------------------------------
@@ -587,11 +593,11 @@ contains
 
                 soilstate_inst%csol_col(c,lev)   = ((1._r8-om_frac)*(params_inst%csol_sand*sand+ &
                      params_inst%csol_clay*clay) / (sand+clay) + params_inst%csol_om*om_frac)*1.e6_r8  ! J/(m3 K)
-
+                
                 soilstate_inst%watdry_col(c,lev) = soilstate_inst%watsat_col(c,lev) * &
-                     (316230._r8/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
+                     (-params_inst%wilting_point_smp/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
                 soilstate_inst%watopt_col(c,lev) = soilstate_inst%watsat_col(c,lev) * &
-                     (158490._r8/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
+                     (-params_inst%field_capacity_smp/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
 
                 !! added by K.Sakaguchi for beta from Lee and Pielke, 1992
                 ! water content at field capacity, defined as hk = 0.1 mm/day
