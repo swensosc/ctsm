@@ -771,9 +771,9 @@ contains
          if (ctype(c) == icol_roof) then
             qflx_evap_soi(p) = -forc_rho(g)*wtuq_roof_unscl(l)*dqh(l)
          else if (ctype(c) == icol_road_perv) then
-            ! Evaporation assigned to soil term if dew or snow
+            ! Evaporation assigned to soil term if dew/frost or explicit snow layers exist
             ! or if no liquid water available in soil column
-            if (dqh(l) > 0._r8 .or. frac_sno(c) > 0._r8 .or. soilalpha_u(c) <= 0._r8) then
+            if (dqh(l) > 0._r8 .or. snl(c) < 0 .or. soilalpha_u(c) <= 0._r8) then
                qflx_evap_soi(p) = -forc_rho(g)*wtuq_road_perv_unscl(l)*dqh(l)
                qflx_tran_veg(p) = 0._r8
                ! Otherwise, evaporation assigned to transpiration term

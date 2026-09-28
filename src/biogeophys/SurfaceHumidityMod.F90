@@ -74,6 +74,7 @@ contains
     real(r8) :: psit         ! negative potential of soil
     real(r8) :: hr           ! alpha soil
     real(r8) :: hr_road_perv ! alpha soil for urban pervious road
+    real(r8) :: qred_top_layer_perv ! humidity reduction for top soil layer of pervious road
     real(r8) :: wx           ! partial volume of ice and water of surface layer
     real(r8) :: fac_fc       ! soil wetness of surface layer relative to field capacity
     real(r8) :: eff_porosity ! effective porosity in layer
@@ -90,7 +91,7 @@ contains
 
 
          frac_h2osfc      =>    waterdiagnosticbulk_inst%frac_h2osfc_col    , & ! Input:  [real(r8) (:)   ] fraction of ground covered by surface water (0 to 1)
-         frac_sno_eff     =>    waterdiagnosticbulk_inst%frac_sno_eff_col   , & ! Input:  [real(r8) (:)   ] eff. fraction of ground covered by snow (0 to 1)
+         frac_sno         =>    waterdiagnosticbulk_inst%frac_sno_col       , & ! Input:  [real(r8) (:)   ] fraction of ground covered by snow (0 to 1)
          h2osoi_ice       =>    waterstatebulk_inst%h2osoi_ice_col          , & ! Input:  [real(r8) (:,:) ] ice lens (kg/m2)
          h2osoi_liq       =>    waterstatebulk_inst%h2osoi_liq_col          , & ! Input:  [real(r8) (:,:) ] liquid water (kg/m2)
          qg_snow          =>    waterdiagnosticbulk_inst%qg_snow_col        , & ! Output: [real(r8) (:)   ] specific humidity at snow surface [kg/kg]
@@ -136,8 +137,8 @@ contains
                psit = max(smpmin(c), psit)
                ! modify qred to account for h2osfc
                hr   = exp(psit/roverg/t_soisno(c,1))
-               qred = (1._r8 - frac_sno_eff(c) - frac_h2osfc(c))*hr &
-                    + frac_sno_eff(c) + frac_h2osfc(c)
+               qred = (1._r8 - frac_sno(c) - frac_h2osfc(c))*hr &
+                    + frac_sno(c) + frac_h2osfc(c)
                soilalpha(c) = qred
 
             else if (col%itype(c) == icol_road_perv) then
@@ -153,9 +154,16 @@ contains
                   end if
                   rootr_road_perv(c,j) = rootfr_road_perv(c,j)*fac
                   hr_road_perv = hr_road_perv + rootr_road_perv(c,j)
+                  if(j==1) then
+                     qred_top_layer_perv = fac
+                  endif
                end do
-               ! Allows for sublimation of snow or dew on snow
-               qred = (1.-frac_sno_eff(c))*hr_road_perv + frac_sno_eff(c)
+               ! When explicit snowpack present, use weighted average
+               if(snl(c)<0) then
+                  qred = (1.-frac_sno(c))*hr_road_perv + frac_sno(c)
+               else
+                  qred = hr_road_perv
+               endif
 
                ! Normalize root resistances to get layer contribution to total ET
                if (hr_road_perv > 0._r8) then
@@ -194,8 +202,8 @@ contains
                call QSat(t_soisno(c,snl(c)+1), forc_pbot(c), qsatg, &
                     qsdT = qsatgdT_snow)
                qg_snow(c) = qsatg
-               dqgdT(c) = frac_sno_eff(c)*qsatgdT_snow + &
-                    (1._r8 - frac_sno_eff(c) - frac_h2osfc(c))*hr*qsatgdT_soil
+               dqgdT(c) = frac_sno(c)*qsatgdT_snow + &
+                    (1._r8 - frac_sno(c) - frac_h2osfc(c))*hr*qsatgdT_soil
             else
                ! To be consistent with hs_top values in SoilTemp, set qg_snow to qg_soil
                ! for snl = 0 case. This ensures hs_top_snow will equal hs_top_soil.
@@ -212,7 +220,7 @@ contains
                qg_h2osfc(c) = qg_soil(c)
             end if
 
-            qg(c) = frac_sno_eff(c)*qg_snow(c) + (1._r8 - frac_sno_eff(c) - frac_h2osfc(c))*qg_soil(c) &
+            qg(c) = frac_sno(c)*qg_snow(c) + (1._r8 - frac_sno(c) - frac_h2osfc(c))*qg_soil(c) &
                  + frac_h2osfc(c) * qg_h2osfc(c)
 
          else
@@ -220,7 +228,11 @@ contains
                  qsdT = qsatgdT)
             qg(c) = qred*qsatg
             dqgdT(c) = qred*qsatgdT
-
+            ! dqgdT is used to update soil evap after SoilTemperature
+            ! use alternate qred for pervious road so dgqdT only depends on top soil layer moisture levels
+            if (col%itype(c) == icol_road_perv) then
+               dqgdT(c) = qred_top_layer_perv*qsatgdT
+            endif
             if (qsatg > forc_q(c) .and. forc_q(c) > qred*qsatg) then
                qg(c) = forc_q(c)
                dqgdT(c) = 0._r8
