@@ -589,9 +589,9 @@ contains
                      params_inst%csol_clay*clay) / (sand+clay) + params_inst%csol_om*om_frac)*1.e6_r8  ! J/(m3 K)
 
                 soilstate_inst%watdry_col(c,lev) = soilstate_inst%watsat_col(c,lev) * &
-                     (316230._r8/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
+                     (150000._r8/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
                 soilstate_inst%watopt_col(c,lev) = soilstate_inst%watsat_col(c,lev) * &
-                     (158490._r8/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
+                     (3400._r8/soilstate_inst%sucsat_col(c,lev)) ** (-1._r8/soilstate_inst%bsw_col(c,lev)) 
 
                 !! added by K.Sakaguchi for beta from Lee and Pielke, 1992
                 ! water content at field capacity, defined as hk = 0.1 mm/day
