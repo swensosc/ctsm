@@ -81,7 +81,9 @@ module WaterFluxType
      real(r8), pointer :: qflx_drain_perched_col   (:)   ! col sub-surface runoff from perched wt (mm H2O /s)                                                                                                      
      real(r8), pointer :: qflx_top_soil_col        (:)   ! col net water input into soil from top (mm/s)
      real(r8), pointer :: qflx_floodc_col          (:)   ! col flood water flux at column level
-     real(r8), pointer :: qflx_sl_top_soil_col     (:)   ! col liquid water + ice from layer above soil to top soil layer or sent to qflx_qrgwl (mm H2O/s)
+     real(r8), pointer :: qflx_liq_snow_input_col(:)     ! col liquid water from removal of explicit snowpack; previous timestep (mm H2O/s)
+     real(r8), pointer :: qflx_liq_snow_removal_col(:)   ! col liquid water from removal of explicit snowpack (mm H2O/s)
+     real(r8), pointer :: qflx_ice_snow_removal_col(:)   ! col ice water from removal of explicit snowpack (mm H2O/s)
      real(r8), pointer :: qflx_snomelt_col         (:)   ! col snow melt (mm H2O /s)
      real(r8), pointer :: qflx_qrgwl_col           (:)   ! col qflx_surf at glaciers, wetlands, lakes
      real(r8), pointer :: qflx_runoff_col          (:)   ! col total runoff (qflx_drain+qflx_surf+qflx_qrgwl) (mm H2O /s)
@@ -327,7 +329,13 @@ contains
     call AllocateVar1d(var = this%qflx_floodc_col, name = 'qflx_floodc_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
-    call AllocateVar1d(var = this%qflx_sl_top_soil_col, name = 'qflx_sl_top_soil_col', &
+    call AllocateVar1d(var = this%qflx_liq_snow_input_col, name = 'qflx_liq_snow_input_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = subgrid_level_column)
+    call AllocateVar1d(var = this%qflx_liq_snow_removal_col, name = 'qflx_liq_snow_removal_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = subgrid_level_column)
+    call AllocateVar1d(var = this%qflx_ice_snow_removal_col, name = 'qflx_ice_snow_removal_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
     call AllocateVar1d(var = this%qflx_runoff_col, name = 'qflx_runoff_col', &
@@ -898,6 +906,7 @@ contains
     this%qflx_liqdew_to_top_layer_col(bounds%begc:bounds%endc)    = 0.0_r8
     this%qflx_soliddew_to_top_layer_col (bounds%begc:bounds%endc) = 0.0_r8
     this%qflx_snow_drain_col(bounds%begc:bounds%endc)  = 0._r8
+    this%qflx_liq_snow_removal_col(bounds%begc:bounds%endc)  = 0._r8
 
     ! This variable only gets set in the hydrology filter; need to initialize it to 0 for
     ! the sake of columns outside this filter
@@ -965,6 +974,14 @@ contains
        ! initial run, not restart: initialize qflx_snow_drain to zero
        this%qflx_snow_drain_col(bounds%begc:bounds%endc) = 0._r8
     endif
+
+    call restartvar(ncid=ncid, flag=flag, &
+         varname=this%info%fname('qflx_liq_snow_removal'), &
+         xtype=ncd_double,  &
+         dim1name='column', &
+         long_name=this%info%lname('liquid water from removal of explicit snowpack'), &
+         units='mm/s', &
+         interpinic_flag='interp', readvar=readvar, data=this%qflx_liq_snow_removal_col)
 
   end subroutine Restart
 

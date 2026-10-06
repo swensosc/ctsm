@@ -158,7 +158,7 @@ contains
     use SoilHydrologyMod     , only : CLMVICMap, SetSoilWaterFractions, SetFloodc
     use SoilHydrologyMod     , only : SetQflxInputs, RouteInfiltrationExcess
     use SoilHydrologyMod     , only : Infiltration, TotalSurfaceRunoff
-    use SoilHydrologyMod     , only : UpdateUrbanPonding
+    use SoilHydrologyMod     , only : UpdateUrbanPonding, SetLiqSnowRemoval
     use SoilHydrologyMod     , only : WaterTable, PerchedWaterTable
     use SoilHydrologyMod     , only : ThetaBasedWaterTable, RenewCondensation
     use SoilWaterMovementMod , only : SoilWater
@@ -309,6 +309,9 @@ contains
            bounds, num_hydrologyc, filter_hydrologyc, lun, col, &
            soilhydrology_inst, soilstate_inst, b_waterflux_inst)
 
+      call SetLiqSnowRemoval(bounds, num_hydrologyc, filter_hydrologyc, &
+           b_waterflux_inst, b_waterstate_inst)
+      
       call SetQflxInputs(bounds, num_hydrologyc, filter_hydrologyc, &
            b_waterflux_inst, b_waterdiagnostic_inst)
 

@@ -43,6 +43,7 @@ module SoilHydrologyMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: SetSoilWaterFractions ! Set diagnostic variables related to the fraction of water and ice in each layer
   public :: SetFloodc            ! Apply gridcell flood water flux to non-lake columns
+  public :: SetLiqSnowRemoval    ! Convert residual liquid snow water to flux for input to land surface
   public :: SetQflxInputs        ! Set the flux of water into the soil from the top
   public :: Infiltration         ! Calculate total infiltration
   public :: TotalSurfaceRunoff   ! Calculate total surface runoff
@@ -295,6 +296,45 @@ contains
 
   end subroutine SetFloodc
 
+  !-----------------------------------------------------------------------
+  subroutine SetLiqSnowRemoval(bounds, num_hydrologyc, filter_hydrologyc, &
+       waterfluxbulk_inst, waterstatebulk_inst)
+    !
+    ! !DESCRIPTION:
+    ! Convert residual liquid snow water to flux for input to land surface
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)          , intent(in)    :: bounds
+    integer                    , intent(in)    :: num_hydrologyc       ! number of column soil points in column filter
+    integer                    , intent(in)    :: filter_hydrologyc(:) ! column filter for soil points
+     type(waterstatebulk_type)   , intent(in)    :: waterstatebulk_inst
+     type(waterfluxbulk_type)    , intent(inout) :: waterfluxbulk_inst
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: fc, c
+    real(r8) :: dtime ! land model time step (sec)
+
+    character(len=*), parameter :: subname = 'SetLiqSnowRemoval'
+    !-----------------------------------------------------------------------
+
+    associate( &
+         h2osno_liq_residual    => waterstatebulk_inst%h2osno_liq_residual_col     , &      ! Input:  [real(r8) (:) ] liquid water remaining after explicit snowpack removal (kg/m2)
+         qflx_liq_snow_removal  =>    waterfluxbulk_inst%qflx_liq_snow_removal_col , & ! Output: [real(r8) (:) ]  liquid water from removal of explicit snowpack; current time step (mm H2O/s)
+         qflx_liq_snow_input    => waterfluxbulk_inst%qflx_liq_snow_input_col        &      ! Output: [real(r8) (:) ]  flux of liquid water from removal of explicit snowpack; previous time step (mm H2O/s)
+         )
+
+      dtime = get_step_size_real()
+      
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         qflx_liq_snow_input(c) = h2osno_liq_residual(c)/dtime
+         qflx_liq_snow_removal(c) = 0._r8
+      end do
+      
+    end associate
+    
+  end subroutine SetLiqSnowRemoval
+
    !-----------------------------------------------------------------------
    subroutine SetQflxInputs(bounds, num_hydrologyc, filter_hydrologyc, &
         waterfluxbulk_inst, waterdiagnosticbulk_inst)
@@ -327,6 +367,7 @@ contains
           qflx_snow_h2osfc        =>    waterfluxbulk_inst%qflx_snow_h2osfc_col       , & ! Input:  [real(r8) (:)]  snow falling on surface water (mm/s)
           qflx_floodc             =>    waterfluxbulk_inst%qflx_floodc_col            , & ! Input:  [real(r8) (:)]  column flux of flood water from RTM
           qflx_ev_soil            =>    waterfluxbulk_inst%qflx_ev_soil_col           , & ! Input:  [real(r8) (:)]  evaporation flux from soil (W/m**2) [+ to atm]
+         qflx_liq_snow_input     =>    waterfluxbulk_inst%qflx_liq_snow_input_col    , & ! Input:  [real(r8) (:)   ]  liquid water from removal of explicit snowpack; previous time step (mm H2O/s)
           qflx_liqevap_from_top_layer => waterfluxbulk_inst%qflx_liqevap_from_top_layer_col, & ! Input:  [real(r8) (:)]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
           qflx_ev_h2osfc          =>    waterfluxbulk_inst%qflx_ev_h2osfc_col         , & ! Input:  [real(r8) (:)]  evaporation flux from h2osfc (W/m**2) [+ to atm]
           qflx_sat_excess_surf    =>    waterfluxbulk_inst%qflx_sat_excess_surf_col   , & ! Input:  [real(r8) (:)]  surface runoff due to saturated surface (mm H2O /s)
@@ -338,7 +379,7 @@ contains
      do fc = 1, num_hydrologyc
         c = filter_hydrologyc(fc)
 
-        qflx_top_soil(c) = qflx_rain_plus_snomelt(c) + qflx_snow_h2osfc(c) + qflx_floodc(c)
+        qflx_top_soil(c) = qflx_rain_plus_snomelt(c) + qflx_snow_h2osfc(c) + qflx_floodc(c) + qflx_liq_snow_input(c)
 
         ! ------------------------------------------------------------------------
         ! Partition surface inputs between soil and h2osfc

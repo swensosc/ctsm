@@ -477,6 +477,8 @@ contains
      real(r8) :: qflx_snwcp_discarded_liq_grc(bounds%begg:bounds%endg)  ! grid cell-level excess liquid h2o due to snow capping, which we simply discard in order to reset the snow pack [mm H2O /s]
      real(r8) :: qflx_snwcp_discarded_ice_grc(bounds%begg:bounds%endg)  ! grid cell-level excess solid h2o due to snow capping, which we simply discard in order to reset the snow pack [mm H2O /s]
      real(r8) :: qflx_condensate_from_ac_grc(bounds%begg:bounds%endg)   ! grid cell-level condensate water flux from air-conditioning [mm H2O /s]
+     real(r8) :: qflx_liq_snow_removal_grc(bounds%begg:bounds%endg)  ! grid cell-level liquid water remaining after explicit snowpack removal (current time step) [mm H2O /s]
+     real(r8) :: qflx_liq_snow_input_grc(bounds%begg:bounds%endg)  ! grid cell-level liquid water remaining after explicit snowpack removal (previous time step) [mm H2O /s]
 
      real(r8) :: errh2o_max_val                         ! Maximum value of error in water conservation error  over all columns [mm H2O]
      real(r8) :: errh2osno_max_val                      ! Maximum value of error in h2osno conservation error over all columns [kg m-2]
@@ -523,6 +525,8 @@ contains
           qflx_flood_col          =>    waterflux_inst%qflx_floodc_col          , & ! Input:  [real(r8) (:)   ]  column level total runoff due to flooding
           forc_flood_grc          =>    wateratm2lnd_inst%forc_flood_grc        , & ! Input:  [real(r8) (:)   ]  grid cell-level total grid cell-level runoff from river model
           qflx_snow_drain         =>    waterflux_inst%qflx_snow_drain_col      , & ! Input:  [real(r8) (:)   ]  drainage from snow pack                         
+          qflx_liq_snow_input     =>    waterflux_inst%qflx_liq_snow_input_col  , & ! Input:  [real(r8) (:)   ]  residual liquid water after explicit snowpack removal (from previous time step)
+          qflx_liq_snow_removal   =>    waterflux_inst%qflx_liq_snow_removal_col , & ! Input:  [real(r8) (:)   ]  residual liquid water after explicit snowpack removal (from current time step)
           qflx_surf_col           =>    waterflux_inst%qflx_surf_col            , & ! Input:  [real(r8) (:)   ]  column level surface runoff (mm H2O /s)
           qflx_surf_grc           =>    waterlnd2atm_inst%qflx_rofliq_qsur_grc  , & ! Input:  [real(r8) (:)   ]  grid cell-level surface runoff (mm H20 /s)
           qflx_qrgwl_col          =>    waterflux_inst%qflx_qrgwl_col           , & ! Input:  [real(r8) (:)   ]  column level qflx_surf at glaciers, wetlands, lakes
@@ -532,7 +536,6 @@ contains
           qflx_streamflow_grc     =>    waterlnd2atm_inst%qflx_rofliq_stream_grc, & ! Input: [real(r8) (:)   ] streamflow [mm H2O/s]
           qflx_ice_runoff_col     =>    waterlnd2atm_inst%qflx_ice_runoff_col   , & ! Input:  [real(r8) (:)   ] column level solid runoff from snow capping and from excess ice in soil (mm H2O /s)
           qflx_ice_runoff_grc     =>    waterlnd2atm_inst%qflx_rofice_grc       , & ! Input:  [real(r8) (:)   ] grid cell-level solid runoff from snow capping and from excess ice in soil (mm H2O /s)
-          qflx_sl_top_soil        =>    waterflux_inst%qflx_sl_top_soil_col     , & ! Input:  [real(r8) (:)   ]  liquid water + ice from layer above soil to top soil layer or sent to qflx_qrgwl (mm H2O/s)
 
           qflx_sfc_irrig_col      =>    waterflux_inst%qflx_sfc_irrig_col       , & ! Input:  [real(r8) (:)   ]  column level irrigation flux (mm H2O /s)
           qflx_sfc_irrig_grc      =>    waterlnd2atm_inst%qirrig_grc            , & ! Input:  [real(r8) (:)   ]  grid cell-level irrigation flux (mm H20 /s)
@@ -574,6 +577,8 @@ contains
                   + qflx_flood_col(c)        &
                   + qflx_sfc_irrig_col(c)    &
                   + qflx_glcice_dyn_water_flux_col(c) &
+                  + qflx_liq_snow_input(c)   &
+                  - qflx_liq_snow_removal(c) &
                   - qflx_evap_tot_col(c)     &
                   - qflx_surf_col(c)         &
                   - qflx_qrgwl_col(c)        &
@@ -613,6 +618,8 @@ contains
               write(iulog,*)'errh2o_col                = ',errh2o_col(indexc)
               write(iulog,*)'forc_rain                 = ',forc_rain_col(indexc)*dtime
               write(iulog,*)'forc_snow                 = ',forc_snow_col(indexc)*dtime
+              write(iulog,*)'qflx_liq_snow_input       = ',qflx_liq_snow_input(indexc)*dtime
+              write(iulog,*)'qflx_liq_snow_removal     = ',qflx_liq_snow_removal(indexc)*dtime
               write(iulog,*)'endwb_col                 = ',endwb_col(indexc)
               write(iulog,*)'begwb_col                 = ',begwb_col(indexc)
 
@@ -661,6 +668,15 @@ contains
          qflx_snwcp_discarded_ice_col(bounds%begc:bounds%endc),  &
          qflx_snwcp_discarded_ice_grc(bounds%begg:bounds%endg),  &
          c2l_scale_type= 'urbanf', l2g_scale_type='unity' )
+       call c2g( bounds,  &
+         qflx_liq_snow_input(bounds%begc:bounds%endc),  &
+         qflx_liq_snow_input_grc(bounds%begg:bounds%endg),  &
+         c2l_scale_type= 'urbanf', l2g_scale_type='unity' )
+       call c2g( bounds,  &
+         qflx_liq_snow_removal(bounds%begc:bounds%endc),  &
+         qflx_liq_snow_removal_grc(bounds%begg:bounds%endg),  &
+         c2l_scale_type= 'urbanf', l2g_scale_type='unity' )
+
        if (IsACDehumidificationEnabled()) then
           call c2g( bounds,  &
             qflx_condensate_from_ac_col(bounds%begc:bounds%endc),  &
@@ -675,6 +691,8 @@ contains
                + forc_flood_grc(g)  &
                + qflx_sfc_irrig_grc(g)  &
                + qflx_glcice_dyn_water_flux_grc(g)  &
+               + qflx_liq_snow_input_grc(g)  &
+               - qflx_liq_snow_removal_grc(g)  &
                - qflx_evap_tot_grc(g)  &
                - qflx_surf_grc(g)  &
                - qflx_qrgwl_grc(g)  &
@@ -765,8 +783,7 @@ contains
                      + qflx_liqdew_to_top_layer(c)
                 snow_sinks(c)  = qflx_solidevap_from_top_layer(c) + qflx_liqevap_from_top_layer(c) &
                      + qflx_snow_drain(c) + qflx_snwcp_ice(c) + qflx_snwcp_liq(c) &
-                     + qflx_snwcp_discarded_ice_col(c) + qflx_snwcp_discarded_liq_col(c) &
-                     + qflx_sl_top_soil(c)
+                     + qflx_snwcp_discarded_ice_col(c) + qflx_snwcp_discarded_liq_col(c) 
 
                 if (lun%itype(l) == istdlak) then 
                    snow_sources(c) = qflx_snow_grnd_col(c) &
@@ -775,7 +792,7 @@ contains
                    snow_sinks(c)   = frac_sno_fluxes(c) * (qflx_solidevap_from_top_layer(c) &
                         + qflx_liqevap_from_top_layer(c) ) + qflx_snwcp_ice(c) + qflx_snwcp_liq(c)  &
                         + qflx_snwcp_discarded_ice_col(c) + qflx_snwcp_discarded_liq_col(c)  &
-                        + qflx_snow_drain(c)  + qflx_sl_top_soil(c)
+                        + qflx_snow_drain(c)
                 endif
 
                  if (col%itype(c) == icol_road_perv .or. lun%itype(l) == istsoil .or. &
@@ -788,7 +805,7 @@ contains
                    snow_sinks(c) = frac_sno_fluxes(c) * (qflx_solidevap_from_top_layer(c) &
                           + qflx_liqevap_from_top_layer(c)) + qflx_snwcp_ice(c) + qflx_snwcp_liq(c) &
                           + qflx_snwcp_discarded_ice_col(c) + qflx_snwcp_discarded_liq_col(c) &
-                          + qflx_snow_drain(c) + qflx_sl_top_soil(c)
+                          + qflx_snow_drain(c)
                 endif
 
                 errh2osno(c) = (h2osno_total(c) - h2osno_old(c)) - (snow_sources(c) - snow_sinks(c)) * dtime
@@ -839,7 +856,6 @@ contains
                  write(iulog,*)'qflx_snwcp_liq     = ',qflx_snwcp_liq(indexc)*dtime
                  write(iulog,*)'qflx_snwcp_discarded_ice = ',qflx_snwcp_discarded_ice_col(indexc)*dtime
                  write(iulog,*)'qflx_snwcp_discarded_liq = ',qflx_snwcp_discarded_liq_col(indexc)*dtime
-                 write(iulog,*)'qflx_sl_top_soil   = ',qflx_sl_top_soil(indexc)*dtime
                  write(iulog,*)'CTSM is stopping'
                  call endrun(subgrid_index=indexc, subgrid_level=subgrid_level_column, msg=errmsg(sourcefile, __LINE__))
             end if
