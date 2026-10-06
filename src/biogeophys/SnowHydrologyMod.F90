@@ -1066,11 +1066,11 @@ contains
             dtime          = dtime, &
             snl            = col%snl(begc:endc), &
             frac_sno_eff   = b_waterdiagnostic_inst%frac_sno_eff_col(begc:endc), &
-            qflx_soliddew_to_top_layer    = w%waterflux_inst%qflx_soliddew_to_top_layer_col(begc:endc), &
-            qflx_solidevap_from_top_layer = w%waterflux_inst%qflx_solidevap_from_top_layer_col(begc:endc), &
+            qflx_soliddew_to_top_layer    = w%waterflux_inst%qflx_soliddew_to_snow_col(begc:endc), &
+            qflx_solidevap_from_top_layer = w%waterflux_inst%qflx_solidevap_from_snow_col(begc:endc), &
             qflx_liq_grnd                 = w%waterflux_inst%qflx_liq_grnd_col(begc:endc), &
-            qflx_liqdew_to_top_layer      = w%waterflux_inst%qflx_liqdew_to_top_layer_col(begc:endc), &
-            qflx_liqevap_from_top_layer   = w%waterflux_inst%qflx_liqevap_from_top_layer_col(begc:endc), &
+            qflx_liqdew_to_top_layer      = w%waterflux_inst%qflx_liqdew_to_snow_col(begc:endc), &
+            qflx_liqevap_from_top_layer   = w%waterflux_inst%qflx_liqevap_from_snow_col(begc:endc), &
             ! Outputs
             h2osoi_ice     = w%waterstate_inst%h2osoi_ice_col(begc:endc,:), &
             h2osoi_liq     = w%waterstate_inst%h2osoi_liq_col(begc:endc,:))
@@ -1137,8 +1137,8 @@ contains
          ! Inputs
          dtime            = dtime, &
          frac_sno_eff     = b_waterdiagnostic_inst%frac_sno_eff_col(begc:endc), &
-         qflx_soliddew_to_top_layer = b_waterflux_inst%qflx_soliddew_to_top_layer_col(begc:endc), &
-         qflx_liqdew_to_top_layer   = b_waterflux_inst%qflx_liqdew_to_top_layer_col(begc:endc), &
+         qflx_soliddew_to_top_layer = b_waterflux_inst%qflx_soliddew_to_snow_col(begc:endc), &
+         qflx_liqdew_to_top_layer   = b_waterflux_inst%qflx_liqdew_to_snow_col(begc:endc), &
          qflx_liq_grnd              = b_waterflux_inst%qflx_liq_grnd_col(begc:endc), &
          h2osno_no_layers           = b_waterstate_inst%h2osno_no_layers_col(begc:endc), &
          ! Outputs
@@ -1217,6 +1217,10 @@ contains
     do fc = 1,num_snowc
        c = filter_snowc(fc)
 
+if(c==-218.and. (col%itype(c)==71.or.col%itype(c)==74)) then
+            write(iulog,*) 'tlf ',c,col%itype(c),snl(c),qflx_liqdew_to_top_layer(c)*dtime
+         endif
+       
        lev_top(c) = snl(c)+1
        h2osoi_ice_top_orig(c) = h2osoi_ice(c,lev_top(c))
        h2osoi_liq_top_orig(c) = h2osoi_liq(c,lev_top(c))

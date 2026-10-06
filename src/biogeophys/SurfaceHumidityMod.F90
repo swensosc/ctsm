@@ -79,6 +79,7 @@ contains
     real(r8) :: eff_porosity ! effective porosity in layer
     real(r8) :: vol_ice      ! partial volume of ice lens in layer
     real(r8) :: vol_liq      ! partial volume of liquid water in layer
+    real(r8) :: qred_top_layer_perv ! humidity reduction for top soil layer of pervious road
     !------------------------------------------------------------------------------
 
     associate( & 
@@ -91,6 +92,7 @@ contains
 
          frac_h2osfc      =>    waterdiagnosticbulk_inst%frac_h2osfc_col    , & ! Input:  [real(r8) (:)   ] fraction of ground covered by surface water (0 to 1)
          frac_sno_eff     =>    waterdiagnosticbulk_inst%frac_sno_eff_col   , & ! Input:  [real(r8) (:)   ] eff. fraction of ground covered by snow (0 to 1)
+         frac_sno         =>    waterdiagnosticbulk_inst%frac_sno_col       , & ! Input:  [real(r8) (:)   ] fraction of ground covered by snow (0 to 1)
          h2osoi_ice       =>    waterstatebulk_inst%h2osoi_ice_col          , & ! Input:  [real(r8) (:,:) ] ice lens (kg/m2)
          h2osoi_liq       =>    waterstatebulk_inst%h2osoi_liq_col          , & ! Input:  [real(r8) (:,:) ] liquid water (kg/m2)
          qg_snow          =>    waterdiagnosticbulk_inst%qg_snow_col        , & ! Output: [real(r8) (:)   ] specific humidity at snow surface [kg/kg]
@@ -129,9 +131,8 @@ contains
          if (lun%itype(l)/=istwet .AND. lun%itype(l)/=istice) then
 
             if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
-               wx   = (h2osoi_liq(c,1)/denh2o+h2osoi_ice(c,1)/denice)/dz(c,1)
+               wx   = h2osoi_liq(c,1)/denh2o/dz(c,1)
                fac  = min(1._r8, wx/watsat(c,1))
-               fac  = max( fac, 0.01_r8 )
                psit = -sucsat(c,1) * fac ** (-bsw(c,1))
                psit = max(smpmin(c), psit)
                ! modify qred to account for h2osfc
@@ -153,9 +154,16 @@ contains
                   end if
                   rootr_road_perv(c,j) = rootfr_road_perv(c,j)*fac
                   hr_road_perv = hr_road_perv + rootr_road_perv(c,j)
+                  if(j==1) then
+                     qred_top_layer_perv = fac
+                  endif
                end do
                ! Allows for sublimation of snow or dew on snow
-               qred = (1.-frac_sno_eff(c))*hr_road_perv + frac_sno_eff(c)
+               if(snl(c)<0) then 
+                  qred = (1.-frac_sno(c))*hr_road_perv + frac_sno(c)
+               else
+                  qred = hr_road_perv
+               endif
 
                ! Normalize root resistances to get layer contribution to total ET
                if (hr_road_perv > 0._r8) then
@@ -221,6 +229,11 @@ contains
             qg(c) = qred*qsatg
             dqgdT(c) = qred*qsatgdT
 
+            ! dqgdT is used to update soil evap; make it only depend on top soil layer moisture levels
+            if (col%itype(c) == icol_road_perv) then
+               dqgdT(c) = qred_top_layer_perv*qsatgdT
+            endif
+            
             if (qsatg > forc_q(c) .and. forc_q(c) > qred*qsatg) then
                qg(c) = forc_q(c)
                dqgdT(c) = 0._r8

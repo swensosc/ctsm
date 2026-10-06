@@ -187,16 +187,26 @@ contains
          qflx_liq_grnd        =>  b_waterflux_inst%qflx_liq_grnd_col      , & ! Output: [real(r8) (:)   ]  liquid on ground after interception (mm H2O/s) [+]
          qflx_evap_tot        =>  b_waterflux_inst%qflx_evap_tot_patch    , & ! Output: [real(r8) (:)   ]  qflx_evap_soi + qflx_evap_can + qflx_tran_veg
          qflx_evap_soi        =>  b_waterflux_inst%qflx_evap_soi_patch    , & ! Output: [real(r8) (:)   ]  soil evaporation (mm H2O/s) (+ = to atm)
-         qflx_solidevap_from_top_layer => b_waterflux_inst%qflx_solidevap_from_top_layer_patch, & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
-         qflx_liqevap_from_top_layer   => b_waterflux_inst%qflx_liqevap_from_top_layer_patch  , & ! Output: [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
-         qflx_soliddew_to_top_layer    =>  b_waterflux_inst%qflx_soliddew_to_top_layer_patch  , & ! Output: [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]
-         qflx_liqdew_to_top_layer      => b_waterflux_inst%qflx_liqdew_to_top_layer_patch     , & ! Output: [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
          qflx_snomelt         =>  b_waterflux_inst%qflx_snomelt_col       , & ! Output: [real(r8) (:)   ]  snow melt (mm H2O /s)
          qflx_snomelt_lyr     =>  b_waterflux_inst%qflx_snomelt_lyr_col   , & ! Output: [real(r8) (:)   ]  snow melt in each layer (mm H2O /s)
-         qflx_liqevap_from_top_layer_col   => b_waterflux_inst%qflx_liqevap_from_top_layer_col  , & ! Output: [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
-         qflx_liqdew_to_top_layer_col      => b_waterflux_inst%qflx_liqdew_to_top_layer_col     , & ! Output: [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
-         qflx_soliddew_to_top_layer_col    =>  b_waterflux_inst%qflx_soliddew_to_top_layer_col  , & ! Output: [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]
-         qflx_solidevap_from_top_layer_col => b_waterflux_inst%qflx_solidevap_from_top_layer_col, & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
+
+         qflx_solidevap_from_snow => b_waterflux_inst%qflx_solidevap_from_snow_patch, & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
+         qflx_liqevap_from_snow   => b_waterflux_inst%qflx_liqevap_from_snow_patch  , & ! Output: [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
+         qflx_soliddew_to_snow    =>  b_waterflux_inst%qflx_soliddew_to_snow_patch  , & ! Output: [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]
+         qflx_liqdew_to_snow      => b_waterflux_inst%qflx_liqdew_to_snow_patch     , & ! Output: [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+         qflx_liqevap_from_snow_col   => b_waterflux_inst%qflx_liqevap_from_snow_col  , & ! Output: [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
+         qflx_liqdew_to_snow_col      => b_waterflux_inst%qflx_liqdew_to_snow_col     , & ! Output: [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+         qflx_soliddew_to_snow_col    =>  b_waterflux_inst%qflx_soliddew_to_snow_col  , & ! Output: [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]
+         qflx_solidevap_from_snow_col => b_waterflux_inst%qflx_solidevap_from_snow_col, & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
+
+         qflx_solidevap_from_soil => b_waterflux_inst%qflx_solidevap_from_soil_patch, & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
+         qflx_liqevap_from_soil   => b_waterflux_inst%qflx_liqevap_from_soil_patch  , & ! Output: [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
+         qflx_soliddew_to_soil    =>  b_waterflux_inst%qflx_soliddew_to_soil_patch  , & ! Output: [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]
+         qflx_liqdew_to_soil      => b_waterflux_inst%qflx_liqdew_to_soil_patch     , & ! Output: [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+         qflx_liqevap_from_soil_col   => b_waterflux_inst%qflx_liqevap_from_soil_col  , & ! Output: [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
+         qflx_liqdew_to_soil_col      => b_waterflux_inst%qflx_liqdew_to_soil_col     , & ! Output: [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+         qflx_soliddew_to_soil_col    =>  b_waterflux_inst%qflx_soliddew_to_soil_col  , & ! Output: [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]
+         qflx_solidevap_from_soil_col => b_waterflux_inst%qflx_solidevap_from_soil_col, & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
          qflx_ev_snow         =>  b_waterflux_inst%qflx_ev_snow_patch     , & ! Output: [real(r8) (:)   ]  evaporation flux from snow (mm H2O/s) [+ to atm]
          qflx_ev_snow_col     =>  b_waterflux_inst%qflx_ev_snow_col       , & ! Output: [real(r8) (:)   ]  evaporation flux from snow (mm H2O/s) [+ to atm]
          qflx_evap_tot_col    =>  b_waterflux_inst%qflx_evap_tot_col      , & ! Output: [real(r8) (:)   ]  pft quantity averaged to the column (assuming one pft)
@@ -276,11 +286,15 @@ contains
        c = pcolumn(p)
        jtop = snl(c)+1
 
-       qflx_liqevap_from_top_layer(p)   = 0._r8
-       qflx_solidevap_from_top_layer(p) = 0._r8
-       qflx_soliddew_to_top_layer(p)    = 0._r8
-       qflx_liqdew_to_top_layer(p)      = 0._r8
-       qflx_ev_snow(p)                  = qflx_evap_soi(p)
+       qflx_liqevap_from_snow(p)   = 0._r8
+       qflx_solidevap_from_snow(p) = 0._r8
+       qflx_soliddew_to_snow(p)    = 0._r8
+       qflx_liqdew_to_snow(p)      = 0._r8
+       qflx_liqevap_from_soil(p)   = 0._r8
+       qflx_solidevap_from_soil(p) = 0._r8
+       qflx_soliddew_to_soil(p)    = 0._r8
+       qflx_liqdew_to_soil(p)      = 0._r8
+       qflx_ev_snow(p)             = qflx_evap_soi(p)
 
        if (jtop <= 0) then ! snow layers
           j = jtop
@@ -295,22 +309,22 @@ contains
              qflx_evap_soi_lim = min(qflx_evap_soi(p), (h2osoi_liq(c,j)+h2osoi_ice(c,j))/dtime)
              qflx_ev_snow(p) = qflx_evap_soi_lim
              if ((h2osoi_liq(c,j)+h2osoi_ice(c,j)) > 0._r8) then
-                qflx_liqevap_from_top_layer(p) = max(qflx_evap_soi_lim*(h2osoi_liq(c,j)/ &
+                qflx_liqevap_from_snow(p) = max(qflx_evap_soi_lim*(h2osoi_liq(c,j)/ &
                      (h2osoi_liq(c,j)+h2osoi_ice(c,j))), 0._r8)
              else
-                qflx_liqevap_from_top_layer(p) = 0._r8
+                qflx_liqevap_from_snow(p) = 0._r8
              end if
-             qflx_solidevap_from_top_layer(p) = qflx_evap_soi_lim - qflx_liqevap_from_top_layer(p)     
+             qflx_solidevap_from_snow(p) = qflx_evap_soi_lim - qflx_liqevap_from_snow(p)     
           else
              ! if (t_grnd(c) < tfrz) then
              ! Causes rare blowup when thin snow layer should completely melt and has a high temp after thermal physics,
              ! but then is not eliminated in SnowHydrology because of this added frost. Also see below removal of
              ! completely melted single snow layer.
              if (t_grnd(c) < tfrz .and. t_soisno(c,j) < tfrz) then
-                qflx_soliddew_to_top_layer(p) = abs(qflx_evap_soi(p))
+                qflx_soliddew_to_snow(p) = abs(qflx_evap_soi(p))
                 ! If top layer is only snow layer, SnowHydrology won't eliminate it if dew is added.
              else if (j < 0 .or. (t_grnd(c) == tfrz .and. t_soisno(c,j) == tfrz)) then
-                qflx_liqdew_to_top_layer(p) = abs(qflx_evap_soi(p))
+                qflx_liqdew_to_snow(p) = abs(qflx_evap_soi(p))
              end if
           end if
 
@@ -318,20 +332,20 @@ contains
           if (qflx_evap_soi(p) >= 0._r8) then
              ! Sublimation: do not allow for more sublimation than there is snow
              ! after melt.  Remaining surface evaporation used for infiltration.
-             qflx_solidevap_from_top_layer(p) = min(qflx_evap_soi(p), h2osno_no_layers(c)/dtime)
-             qflx_liqevap_from_top_layer(p) = qflx_evap_soi(p) - qflx_solidevap_from_top_layer(p)
+             qflx_solidevap_from_soil(p) = min(qflx_evap_soi(p), h2osno_no_layers(c)/dtime)
+             qflx_liqevap_from_soil(p) = qflx_evap_soi(p) - qflx_solidevap_from_soil(p)
           else
              if (t_grnd(c) < tfrz-0.1_r8) then
-                qflx_soliddew_to_top_layer(p) = abs(qflx_evap_soi(p))
+                qflx_soliddew_to_soil(p) = abs(qflx_evap_soi(p))
              else
-                qflx_liqdew_to_top_layer(p) = abs(qflx_evap_soi(p))
+                qflx_liqdew_to_soil(p) = abs(qflx_evap_soi(p))
              end if
           end if
 
           ! Update snow pack for dew & sub.
 
           h2osno_temp = h2osno_no_layers(c)
-          qflx_dew_minus_sub_snow = -qflx_solidevap_from_top_layer(p)+qflx_soliddew_to_top_layer(p)
+          qflx_dew_minus_sub_snow = -qflx_solidevap_from_soil(p)+qflx_soliddew_to_soil(p)
           h2osno_no_layers(c) = h2osno_no_layers(c) + qflx_dew_minus_sub_snow*dtime
           h2osno_no_layers(c) = max(h2osno_no_layers(c), 0._r8)
           if (qflx_dew_minus_sub_snow > 0._r8) then
@@ -382,11 +396,15 @@ contains
        c = pcolumn(p)
 
        qflx_evap_tot_col(c)  = qflx_evap_tot(p)
-       qflx_liqevap_from_top_layer_col(c)   = qflx_liqevap_from_top_layer(p)
-       qflx_liqdew_to_top_layer_col(c)      = qflx_liqdew_to_top_layer(p)
-       qflx_soliddew_to_top_layer_col(c)    = qflx_soliddew_to_top_layer(p)
-       qflx_solidevap_from_top_layer_col(c) = qflx_solidevap_from_top_layer(p)
-       qflx_ev_snow_col(c)                  = qflx_ev_snow(p)
+       qflx_liqevap_from_snow_col(c)   = qflx_liqevap_from_snow(p)
+       qflx_liqdew_to_snow_col(c)      = qflx_liqdew_to_snow(p)
+       qflx_soliddew_to_snow_col(c)    = qflx_soliddew_to_snow(p)
+       qflx_solidevap_from_snow_col(c) = qflx_solidevap_from_snow(p)
+       qflx_liqevap_from_soil_col(c)   = qflx_liqevap_from_soil(p)
+       qflx_liqdew_to_soil_col(c)      = qflx_liqdew_to_soil(p)
+       qflx_soliddew_to_soil_col(c)    = qflx_soliddew_to_soil(p)
+       qflx_solidevap_from_soil_col(c) = qflx_solidevap_from_soil(p)
+       qflx_ev_snow_col(c)             = qflx_ev_snow(p)
     enddo
 
     ! BUG(wjs, 2019-07-12, ESCOMP/ctsm#762) This is needed so that we can test the

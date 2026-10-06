@@ -327,7 +327,8 @@ contains
           qflx_snow_h2osfc        =>    waterfluxbulk_inst%qflx_snow_h2osfc_col       , & ! Input:  [real(r8) (:)]  snow falling on surface water (mm/s)
           qflx_floodc             =>    waterfluxbulk_inst%qflx_floodc_col            , & ! Input:  [real(r8) (:)]  column flux of flood water from RTM
           qflx_ev_soil            =>    waterfluxbulk_inst%qflx_ev_soil_col           , & ! Input:  [real(r8) (:)]  evaporation flux from soil (W/m**2) [+ to atm]
-          qflx_liqevap_from_top_layer => waterfluxbulk_inst%qflx_liqevap_from_top_layer_col, & ! Input:  [real(r8) (:)]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
+          qflx_liqdew_to_soil    => waterfluxbulk_inst%qflx_liqdew_to_soil_col   , & ! Input:  [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+          qflx_liqevap_from_soil => waterfluxbulk_inst%qflx_liqevap_from_soil_col, & ! Input:  [real(r8) (:)]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
           qflx_ev_h2osfc          =>    waterfluxbulk_inst%qflx_ev_h2osfc_col         , & ! Input:  [real(r8) (:)]  evaporation flux from h2osfc (W/m**2) [+ to atm]
           qflx_sat_excess_surf    =>    waterfluxbulk_inst%qflx_sat_excess_surf_col   , & ! Input:  [real(r8) (:)]  surface runoff due to saturated surface (mm H2O /s)
 
@@ -346,12 +347,10 @@ contains
 
         if (snl(c) >= 0) then
            fsno=0._r8
-           ! if no snow layers, sublimation is removed from h2osoi_ice in drainage
-           qflx_evap=qflx_liqevap_from_top_layer(c)
         else
            fsno=frac_sno(c)
-           qflx_evap=qflx_ev_soil(c)
         endif
+        qflx_evap = qflx_liqevap_from_soil(c) - qflx_liqdew_to_soil(c)
 
         qflx_in_soil(c) = (1._r8 - frac_h2osfc(c)) * (qflx_top_soil(c)  - qflx_sat_excess_surf(c))
         qflx_top_soil_to_h2osfc(c) = frac_h2osfc(c) * (qflx_top_soil(c)  - qflx_sat_excess_surf(c))
@@ -495,7 +494,10 @@ contains
           qflx_infl_excess_surf => waterfluxbulk_inst%qflx_infl_excess_surf_col, & ! Input:  [real(r8) (:)   ]  surface runoff due to infiltration excess (mm H2O /s)
           qflx_h2osfc_surf =>    waterfluxbulk_inst%qflx_h2osfc_surf_col,  & ! Input:  [real(r8) (:)   ]  surface water runoff (mm H2O /s)
           qflx_rain_plus_snomelt => waterfluxbulk_inst%qflx_rain_plus_snomelt_col , & ! Input: [real(r8) (:)   ] rain plus snow melt falling on the soil (mm/s)
-          qflx_liqevap_from_top_layer => waterfluxbulk_inst%qflx_liqevap_from_top_layer_col, & ! Input:  [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]    
+          qflx_liqevap_from_snow => waterfluxbulk_inst%qflx_liqevap_from_snow_col, & ! Input:  [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]    
+          qflx_liqdew_to_snow    => waterfluxbulk_inst%qflx_liqdew_to_snow_col   , & ! Input:  [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+          qflx_liqevap_from_soil => waterfluxbulk_inst%qflx_liqevap_from_soil_col, & ! Input:  [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]    
+          qflx_liqdew_to_soil    => waterfluxbulk_inst%qflx_liqdew_to_soil_col   , & ! Input:  [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
           qflx_floodc      =>    waterfluxbulk_inst%qflx_floodc_col      , & ! Input:  [real(r8) (:)   ]  column flux of flood water from RTM               
           qflx_sat_excess_surf => waterfluxbulk_inst%qflx_sat_excess_surf_col , & ! Input:  [real(r8) (:)   ]  surface runoff due to saturated surface (mm H2O /s)
           qflx_condensate_from_ac => waterfluxbulk_inst%qflx_condensate_from_ac_col, & ! Input: [real(r8) (:)   ] condensate from air-conditioning (mm H2O /s)
@@ -528,16 +530,28 @@ contains
      do fc = 1, num_urbanc
         c = filter_urbanc(fc)
         if (col%itype(c) == icol_roof .or. col%itype(c) == icol_road_imperv) then
+
+!scs
+         if(c==-218) then
+            write(iulog,*) 'tsr ',c,snl(c),qflx_liqdew_to_snow(c)*dtime,qflx_liqdew_to_soil(c)*dtime
+         endif
+ 
+           
            ! If there are snow layers then all qflx_rain_plus_snomelt goes to surface runoff
            if (snl(c) < 0) then
               qflx_surf(c) = max(0._r8,qflx_rain_plus_snomelt(c))
+              !scs
+              !qflx_surf(c) = max(0._r8,qflx_rain_plus_snomelt(c) + qflx_liqdew_to_snow(c))
            else
               ! NOTE(wjs, 2017-07-11) It looks to me like this use of xs_urban and
               ! h2osoi_liq(c,1) are roughly analogous to h2osfc in hydrologically-active
               ! columns. Why not use h2osfc for urban columns, too?
               xs_urban(c) = max(0._r8, &
-                   h2osoi_liq(c,1)/dtime + qflx_rain_plus_snomelt(c) - qflx_liqevap_from_top_layer(c) - &
-                   pondmx_urban/dtime)
+                   h2osoi_liq(c,1)/dtime &
+                   + qflx_rain_plus_snomelt(c) &
+                   + qflx_liqdew_to_soil(c) &
+                   - qflx_liqevap_from_soil(c) &
+                   - pondmx_urban/dtime)
               qflx_surf(c) = xs_urban(c)
            end if
            ! Send flood water flux and air-conditioning condensate (the latter exists only
@@ -575,6 +589,9 @@ contains
      ! !LOCAL VARIABLES:
      integer  :: fc, c
      real(r8) :: dtime ! land model time step (sec)
+     integer  :: num_modifiedc                                   ! number of columns in filter_modifiedc
+     integer  :: filter_modifiedc(bounds%endc-bounds%begc+1)     ! column filter of points modified in this subroutine
+     real(r8) :: h2osoi_ice_before_evap(bounds%begc:bounds%endc) ! h2osoi_ice in layer 1 before applying solidevap
 
      character(len=*), parameter :: subname = 'UpdateUrbanPonding'
      !-----------------------------------------------------------------------
@@ -583,27 +600,70 @@ contains
          snl              =>    col%snl                             , & ! Input:  [integer  (:)   ]  minus number of snow layers                        
 
          h2osoi_liq       =>    waterstatebulk_inst%h2osoi_liq_col      , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)
+         h2osoi_ice       =>    waterstatebulk_inst%h2osoi_ice_col  , & ! Output: [real(r8) (:,:) ]  ice lens (kg/m2)
 
          xs_urban         =>    soilhydrology_inst%xs_urban_col     , & ! Input:  [real(r8) (:)   ]  excess soil water above urban ponding limit
 
          qflx_rain_plus_snomelt => waterfluxbulk_inst%qflx_rain_plus_snomelt_col , & ! Input: [real(r8) (:)   ] rain plus snow melt falling on the soil (mm/s)
-         qflx_liqevap_from_top_layer => waterfluxbulk_inst%qflx_liqevap_from_top_layer_col & ! Input:  [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]    
+         qflx_liqevap_from_soil => waterfluxbulk_inst%qflx_liqevap_from_soil_col, & ! Input:  [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
+         qflx_liqdew_to_soil       => waterfluxbulk_inst%qflx_liqdew_to_soil_col    , & ! Input:  [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+          qflx_soliddew_to_soil    => waterfluxbulk_inst%qflx_soliddew_to_soil_col  , & ! Input:  [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]
+          qflx_solidevap_from_soil => waterfluxbulk_inst%qflx_solidevap_from_soil_col & ! Input: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
          )
 
      dtime = get_step_size_real()
 
+     num_modifiedc = 0
      do fc = 1, num_urbanc
         c = filter_urbanc(fc)
         
         if (col%itype(c) == icol_roof .or. col%itype(c) == icol_road_imperv) then
+
            if (snl(c) >= 0) then
               if (xs_urban(c) > 0.) then
                  h2osoi_liq(c,1) = pondmx_urban
               else
                  h2osoi_liq(c,1) = max(0._r8,h2osoi_liq(c,1)+ &
-                      (qflx_rain_plus_snomelt(c)-qflx_liqevap_from_top_layer(c))*dtime)
+                      (qflx_rain_plus_snomelt(c) + qflx_liqdew_to_soil(c) - qflx_liqevap_from_soil(c))*dtime)
               end if
+
+           !scs: if snl<0 this should *not* be in the log file
+         if(c==-218) then
+            write(iulog,*) 'uup ',c,snl(c),qflx_liqdew_to_soil(c),qflx_liqdew_to_soil(c)*dtime
+         endif
+              
+              ! frost and sublimation when there are no explicit snow layers
+              num_modifiedc = num_modifiedc + 1
+              filter_modifiedc(num_modifiedc) = c
+              h2osoi_ice(c,1) = h2osoi_ice(c,1) + (qflx_soliddew_to_soil(c) * dtime)
+              h2osoi_ice_before_evap(c) = h2osoi_ice(c,1)
+              h2osoi_ice(c,1) = h2osoi_ice(c,1) - (qflx_solidevap_from_soil(c) * dtime)
+
            end if
+        end if
+
+     end do
+
+     call truncate_small_values( &
+          num_f              = num_modifiedc, &
+          filter_f           = filter_modifiedc, &
+          lb                 = bounds%begc, &
+          ub                 = bounds%endc, &
+          data_baseline      = h2osoi_ice_before_evap(bounds%begc:bounds%endc), &
+          data               = h2osoi_ice(bounds%begc:bounds%endc, 1), &
+          custom_rel_epsilon = tolerance)
+
+     do fc = 1, num_modifiedc
+        c = filter_modifiedc(fc)
+
+        if (h2osoi_ice(c,1) < 0._r8) then
+           write(iulog,*) "ERROR: In UpdateUrbanPonding, h2osoi_ice has gone significantly negative"
+           write(iulog,*) "c = ", c
+           write(iulog,*) "h2osoi_ice_before_evap = ", h2osoi_ice_before_evap(c)
+           write(iulog,*) "h2osoi_ice(c,1)        = ", h2osoi_ice(c,1)
+           write(iulog,*) "qflx_solidevap_from_soil*dtime = ", qflx_solidevap_from_soil(c)*dtime
+           call endrun(subgrid_index=c, subgrid_level=subgrid_level_column, &
+                msg="In UpdateUrbanPonding, h2osoi_ice has gone significantly negative")
         end if
      end do
 
@@ -665,7 +725,6 @@ contains
      real(r8) :: q_perch
      real(r8) :: q_perch_max
      real(r8) :: dflag=0._r8
-     real(r8) :: qflx_solidevap_from_top_layer_save      ! temporary
      !-----------------------------------------------------------------------
 
      associate(                                                            & 
@@ -978,9 +1037,6 @@ contains
           
           qflx_snwcp_liq     =>    waterfluxbulk_inst%qflx_snwcp_liq_col     , & ! Output: [real(r8) (:)   ] excess liquid h2o due to snow capping (outgoing) (mm H2O /s) [+]
           qflx_ice_runoff_xs =>    waterfluxbulk_inst%qflx_ice_runoff_xs_col , & ! Output: [real(r8) (:)   ] solid runoff from excess ice in soil (mm H2O /s) [+]
-          qflx_liqdew_to_top_layer      => waterfluxbulk_inst%qflx_liqdew_to_top_layer_col     , & ! Output: [real(r8) (:)   ] rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]    
-          qflx_soliddew_to_top_layer    => waterfluxbulk_inst%qflx_soliddew_to_top_layer_col   , & ! Output: [real(r8) (:)   ] rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]      
-          qflx_solidevap_from_top_layer => waterfluxbulk_inst%qflx_solidevap_from_top_layer_col, & ! Output: [real(r8) (:)   ] rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]   
           qflx_drain         =>    waterfluxbulk_inst%qflx_drain_col         , & ! Output: [real(r8) (:)   ] sub-surface runoff (mm H2O /s)                    
           qflx_qrgwl         =>    waterfluxbulk_inst%qflx_qrgwl_col         , & ! Output: [real(r8) (:)   ] qflx_surf at glaciers, wetlands, lakes (mm H2O /s)
           qflx_rsub_sat      =>    waterfluxbulk_inst%qflx_rsub_sat_col      , & ! Output: [real(r8) (:)   ] soil saturation excess [mm h2o/s]                 
@@ -2599,7 +2655,6 @@ contains
      ! !LOCAL VARIABLES:
      integer  :: c ,j,fc,i                                       ! indices
      real(r8) :: dtime                                           ! land model time step (sec)
-     real(r8) :: qflx_solidevap_from_top_layer_save              ! temporary
      integer  :: num_modifiedc                                   ! number of columns in filter_modifiedc
      integer  :: filter_modifiedc(bounds%endc-bounds%begc+1)     ! column filter of points modified in this subroutine
      real(r8) :: h2osoi_ice_before_evap(bounds%begc:bounds%endc) ! h2osoi_ice in layer 1 before applying solidevap
@@ -2607,13 +2662,12 @@ contains
 
      associate(                                                            & 
           snl                =>    col%snl                               , & ! Input:  [integer  (:)   ]  number of snow layers                              
-          h2osoi_liq         =>    waterstatebulk_inst%h2osoi_liq_col        , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)                            
-          h2osoi_ice         =>    waterstatebulk_inst%h2osoi_ice_col        , & ! Output: [real(r8) (:,:) ]  ice lens (kg/m2)                                
+          h2osno_no_layers   => waterstatebulk_inst%h2osno_no_layers_col , & ! Output: [real(r8) (:)   ]  snow that is not resolved into layers (kg/m2)
+          h2osoi_ice         =>    waterstatebulk_inst%h2osoi_ice_col    , & ! Output: [real(r8) (:,:) ]  ice lens (kg/m2)                                
           frac_h2osfc        =>    waterdiagnosticbulk_inst%frac_h2osfc_col       , & ! Input:  [real(r8) (:)   ]                                                    
-          qflx_liqdew_to_top_layer      => waterfluxbulk_inst%qflx_liqdew_to_top_layer_col  , & ! Input:  [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]    
-          qflx_soliddew_to_top_layer    => waterfluxbulk_inst%qflx_soliddew_to_top_layer_col, & ! Input:  [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]      
-          qflx_ev_snow                  => waterfluxbulk_inst%qflx_ev_snow_col    , & ! In/Out: [real(r8) (:)   ]  evaporation flux from snow (mm H2O/s) [+ to atm]
-          qflx_solidevap_from_top_layer => waterfluxbulk_inst%qflx_solidevap_from_top_layer_col & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]   
+          frac_sno_eff       =>    waterdiagnosticbulk_inst%frac_sno_eff_col      , & ! Input:  [real(r8) (:)   ]
+          qflx_soliddew_to_soil    => waterfluxbulk_inst%qflx_soliddew_to_soil_col, & ! Input:  [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]      
+          qflx_solidevap_from_soil => waterfluxbulk_inst%qflx_solidevap_from_soil_col & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]   
           )
 
        ! Get time step
@@ -2624,40 +2678,37 @@ contains
        do fc = 1, num_hydrologyc
           c = filter_hydrologyc(fc)
 
-          ! Renew the ice and liquid mass due to condensation
+!scs
+         if(c==-267.and. col%itype(c) == 75) then
+            write(iulog,*) 'soilhyd ',c,snl(c),qflx_solidevap_from_soil(c),qflx_solidevap_from_soil(c)*dtime,h2osoi_ice(c,1),frac_sno_eff(c), frac_h2osfc(c)
+         endif
+          
+          ! Apply frost and sublimation (solid evaporative fluxes)
 
-          if (snl(c)+1 >= 1) then
+          if (snl(c) >= 0) then
              num_modifiedc = num_modifiedc + 1
              filter_modifiedc(num_modifiedc) = c
 
-             ! make consistent with how evap_grnd removed in infiltration
-             h2osoi_liq(c,1) = h2osoi_liq(c,1) + (1._r8 - frac_h2osfc(c))*qflx_liqdew_to_top_layer(c) * dtime
-             h2osoi_ice(c,1) = h2osoi_ice(c,1) + (1._r8 - frac_h2osfc(c))*qflx_soliddew_to_top_layer(c) * dtime
+             ! apply frost to unresolved snow layer
+             h2osno_no_layers(c) = h2osno_no_layers(c) + (1._r8 - frac_h2osfc(c))*qflx_soliddew_to_soil(c) * dtime
+
+             ! make sublimation consistent with how evap_grnd removed in infiltration
              h2osoi_ice_before_evap(c) = h2osoi_ice(c,1)
-             h2osoi_ice(c,1) = h2osoi_ice(c,1) - (1._r8 - frac_h2osfc(c)) * qflx_solidevap_from_top_layer(c) * dtime
+             h2osoi_ice(c,1) = h2osoi_ice(c,1) - (1._r8 - frac_h2osfc(c)) * qflx_solidevap_from_soil(c) * dtime
+          else ! snow layers
+             num_modifiedc = num_modifiedc + 1
+             filter_modifiedc(num_modifiedc) = c
+
+             ! apply frost to top snow layer; this is what would have occurred if frost was combined with snowfall and incorporated into the snowpack
+             h2osoi_ice(c,snl(c)+1) = h2osoi_ice(c,snl(c)+1) + (1._r8 - frac_sno_eff(c) - frac_h2osfc(c))*qflx_soliddew_to_soil(c) * dtime
+             
+             ! make sublimation consistent with how evap_grnd removed in infiltration
+             h2osoi_ice_before_evap(c) = h2osoi_ice(c,1)
+             h2osoi_ice(c,1) = h2osoi_ice(c,1) - (1._r8 - frac_sno_eff(c) - frac_h2osfc(c)) * qflx_solidevap_from_soil(c) * dtime
           end if
 
        end do
-
-
-       do fc = 1, num_urbanc
-          c = filter_urbanc(fc)
-          ! Renew the ice and liquid mass due to condensation for urban roof and impervious road
-
-          if (col%itype(c) == icol_roof .or. col%itype(c) == icol_road_imperv) then
-             if (snl(c)+1 >= 1) then
-                num_modifiedc = num_modifiedc + 1
-                filter_modifiedc(num_modifiedc) = c
-
-                h2osoi_liq(c,1) = h2osoi_liq(c,1) + qflx_liqdew_to_top_layer(c) * dtime
-                h2osoi_ice(c,1) = h2osoi_ice(c,1) + (qflx_soliddew_to_top_layer(c) * dtime)
-                h2osoi_ice_before_evap(c) = h2osoi_ice(c,1)
-                h2osoi_ice(c,1) = h2osoi_ice(c,1) - (qflx_solidevap_from_top_layer(c) * dtime)
-             end if
-          end if
-
-       end do
-
+ 
        call truncate_small_values( &
             num_f              = num_modifiedc, &
             filter_f           = filter_modifiedc, &
@@ -2675,7 +2726,7 @@ contains
              write(iulog,*) "c = ", c
              write(iulog,*) "h2osoi_ice_before_evap = ", h2osoi_ice_before_evap(c)
              write(iulog,*) "h2osoi_ice(c,1)        = ", h2osoi_ice(c,1)
-             write(iulog,*) "qflx_solidevap_from_top_layer*dtime = ", qflx_solidevap_from_top_layer(c)*dtime
+             write(iulog,*) "qflx_solidevap_from_soil*dtime = ", qflx_solidevap_from_soil(c)*dtime
              call endrun(subgrid_index=c, subgrid_level=subgrid_level_column, &
                   msg="In RenewCondensation, h2osoi_ice has gone significantly negative")
           end if
