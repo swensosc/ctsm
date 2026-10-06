@@ -375,7 +375,7 @@ contains
          qflx_ev_h2osfc          =>    waterfluxbulk_inst%qflx_ev_h2osfc_col         , & ! Input:  [real(r8) (:)]  evaporation flux from h2osfc (W/m**2) [+ to atm]
          qflx_sat_excess_surf    =>    waterfluxbulk_inst%qflx_sat_excess_surf_col   , & ! Input:  [real(r8) (:)]  surface runoff due to saturated surface (mm H2O /s)
          
-         frac_sno                =>    waterdiagnosticbulk_inst%frac_sno_eff_col          , & ! Input:  [real(r8) (:)   ]  fraction of ground covered by snow (0 to 1)
+         frac_sno_fluxes         =>    waterdiagnosticbulk_inst%frac_sno_fluxes_col  , & ! Input:  [real(r8) (:)   ]  fraction of ground covered by snow for heat flux calculations (0 to 1)
          frac_h2osfc             =>    waterdiagnosticbulk_inst%frac_h2osfc_col          & ! Input:  [real(r8) (:)   ]  fraction of ground covered by surface water (0 to 1)
          )
       
@@ -391,7 +391,7 @@ contains
          if (snl(c) >= 0) then
             fsno=0._r8
          else
-            fsno=frac_sno(c)
+            fsno=frac_sno_fluxes(c)
          endif
          qflx_evap = qflx_liqevap_from_soil(c) - qflx_liqdew_to_soil(c)
          
@@ -2757,7 +2757,7 @@ contains
           h2osoi_ice         =>    waterstatebulk_inst%h2osoi_ice_col    , & ! Output: [real(r8) (:,:) ]  ice lens (kg/m2)                                
           h2osno_no_layers   => waterstatebulk_inst%h2osno_no_layers_col , & ! Output: [real(r8) (:)   ]  snow that is not resolved into layers (kg/m2)
           frac_h2osfc        =>    waterdiagnosticbulk_inst%frac_h2osfc_col       , & ! Input:  [real(r8) (:)   ]
-          frac_sno_eff       =>    waterdiagnosticbulk_inst%frac_sno_eff_col      , & ! Input:  [real(r8) (:)   ]
+          frac_sno_fluxes       =>    waterdiagnosticbulk_inst%frac_sno_fluxes_col      , & ! Input:  [real(r8) (:)   ]
           qflx_soliddew_to_soil    => waterfluxbulk_inst%qflx_soliddew_to_soil_col, & ! Input:  [real(r8) (:)   ]  rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+]      
           qflx_solidevap_from_soil => waterfluxbulk_inst%qflx_solidevap_from_soil_col & ! Output: [real(r8) (:)   ]  rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]   
           )
@@ -2786,14 +2786,12 @@ contains
              num_modifiedc = num_modifiedc + 1
              filter_modifiedc(num_modifiedc) = c
 
-             ! apply frost to top soil layer; this can cause oversaturation
-             !h2osoi_ice(c,1) = h2osoi_ice(c,1) + (1._r8 - frac_sno_eff(c) - frac_h2osfc(c))*qflx_soliddew_to_soil(c) * dtime
              ! apply frost to top snow layer; this is what would have occurred if frost was combined with snowfall and incorporated into the snowpack
-             h2osoi_ice(c,snl(c)+1) = h2osoi_ice(c,snl(c)+1) + (1._r8 - frac_sno_eff(c) - frac_h2osfc(c))*qflx_soliddew_to_soil(c) * dtime
+             h2osoi_ice(c,snl(c)+1) = h2osoi_ice(c,snl(c)+1) + (1._r8 - frac_sno_fluxes(c) - frac_h2osfc(c))*qflx_soliddew_to_soil(c) * dtime
 
              ! make sublimation consistent with how evap_grnd removed in infiltration
              h2osoi_ice_before_evap(c) = h2osoi_ice(c,1)
-             h2osoi_ice(c,1) = h2osoi_ice(c,1) - (1._r8 - frac_sno_eff(c) - frac_h2osfc(c)) * qflx_solidevap_from_soil(c) * dtime
+             h2osoi_ice(c,1) = h2osoi_ice(c,1) - (1._r8 - frac_sno_fluxes(c) - frac_h2osfc(c)) * qflx_solidevap_from_soil(c) * dtime
           end if
 
        end do

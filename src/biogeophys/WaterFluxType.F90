@@ -1082,9 +1082,6 @@ contains
          units='mm/s', &
          interpinic_flag='interp', readvar=readvar, data=this%qflx_liq_snow_removal_col)
 
-    call this%qflx_liq_dynbal_dribbler%Restart(bounds, ncid, flag)
-    call this%qflx_ice_dynbal_dribbler%Restart(bounds, ncid, flag)
-
   end subroutine Restart
 
 end module WaterFluxType
