@@ -1425,6 +1425,22 @@ contains
                !      call endrun(subname // ':: negative soil moisture values found!')
             endif
          end do
+
+         ! add in ice check
+         ! the calculation of eff_por has a min of 0.01, which implies less ice?
+          over_saturation = max(h2osoi_ice(c,1)-(watsat(c,1)*m_to_mm*dz(c,1)-h2osoi_liq(c,1)),0._r8)
+
+          
+          !scs
+          if( over_saturation > 1e-12_r8) then
+             write(iulog,*) 'swice_err  ',c, over_saturation
+             write(iulog,*) 'swice_err2 ',c, h2osoi_ice(c,1),h2osoi_liq(c,1),watsat(c,1)*m_to_mm*dz(c,1)
+             write(iulog,*) 'swice_err3 ',c, watsat(c,1)*m_to_mm*dz(c,1)-(h2osoi_ice(c,1)+h2osoi_liq(c,1))
+             write(iulog,*) 'swice_err4 ',c, max(max(h2osoi_ice(c,1),0._r8)-max(0._r8,(watsat(c,1)*m_to_mm*dz(c,1)-h2osoi_liq(c,1))),0._r8),h2osoi_ice(c,1)-(watsat(c,1)*m_to_mm*dz(c,1)-h2osoi_liq(c,1))
+             write(iulog,*) 'swice_err5 ',c, eff_porosity(c,1),h2osoi_ice(c,j)/(dz(c,j)*denice)
+          endif
+
+         
          qin_col(c,1:nlayers) = qin(c,1:nlayers)
          qout_col(c,1:nlayers) = qout(c,1:nlayers)
       end do  ! spatial loop

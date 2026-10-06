@@ -1736,7 +1736,7 @@ contains
          waterfluxbulk_inst%qflx_soliddew_to_snow_patch(bounds%begp:bounds%endp), &
          waterfluxbulk_inst%qflx_soliddew_to_snow_col(bounds%begc:bounds%endc))
 
-        call p2c (bounds, num_nolakec, filter_nolakec, &
+    call p2c (bounds, num_nolakec, filter_nolakec, &
          waterfluxbulk_inst%qflx_liqevap_from_soil_patch(bounds%begp:bounds%endp), &
          waterfluxbulk_inst%qflx_liqevap_from_soil_col(bounds%begc:bounds%endc))
 

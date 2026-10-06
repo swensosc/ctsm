@@ -246,7 +246,9 @@ contains
           ! fractional impermeability
           dz_ext(c,j) = dz(c,j) + excess_ice(c,j)/denice ! extended layer thickness, should be good for all the columns
           vol_ice(c,j) = min(watsat(c,j), (h2osoi_ice(c,j) + excess_ice(c,j))/(dz_ext(c,j)*denice))
-          eff_porosity(c,j) = max(0.01_r8,watsat(c,j)-vol_ice(c,j))
+!          eff_porosity(c,j) = max(0.01_r8,watsat(c,j)-vol_ice(c,j))
+!scs the limit can make it inconsistent when column is saturated
+          eff_porosity(c,j) = watsat(c,j)-vol_ice(c,j)
           icefrac(c,j) = min(1._r8,vol_ice(c,j)/watsat(c,j))
 
        end do
@@ -367,7 +369,6 @@ contains
          qflx_floodc             =>    waterfluxbulk_inst%qflx_floodc_col            , & ! Input:  [real(r8) (:)]  column flux of flood water from RTM
          qflx_ev_soil            =>    waterfluxbulk_inst%qflx_ev_soil_col           , & ! Input:  [real(r8) (:)]  evaporation flux from soil (W/m**2) [+ to atm]
          qflx_liq_snow_input     =>    waterfluxbulk_inst%qflx_liq_snow_input_col    , & ! Input:  [real(r8) (:)   ]  liquid water from removal of explicit snowpack; previous time step (mm H2O/s)
-         qflx_liq_snow_removal   =>    waterfluxbulk_inst%qflx_liq_snow_removal_col  , & ! Input:  [real(r8) (:)   ]  liquid water from removal of explicit snowpack; current time step (mm H2O/s)
           qflx_liqdew_to_soil    => waterfluxbulk_inst%qflx_liqdew_to_soil_col   , & ! Input:  [real(r8) (:)   ]  rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
           qflx_liqevap_from_soil => waterfluxbulk_inst%qflx_liqevap_from_soil_col, & ! Input:  [real(r8) (:)]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
          qflx_ev_h2osfc          =>    waterfluxbulk_inst%qflx_ev_h2osfc_col         , & ! Input:  [real(r8) (:)]  evaporation flux from h2osfc (W/m**2) [+ to atm]
@@ -379,13 +380,7 @@ contains
       
       do fc = 1, num_hydrologyc
          c = filter_hydrologyc(fc)
-         
-         ! record input for current time step, then initialize removal
-         
-         ! would it be safer to send qflx_liq_snow_removal to the coupler, then read in qflx_liq_snow_input from the coupler next time step?
-         qflx_liq_snow_input(c) = qflx_liq_snow_removal(c)
-         qflx_liq_snow_removal(c) = 0._r8
-         
+                  
          qflx_top_soil(c) = qflx_rain_plus_snomelt(c) + qflx_snow_h2osfc(c) + qflx_floodc(c) + qflx_liq_snow_input(c)
          
          ! ------------------------------------------------------------------------
@@ -578,14 +573,19 @@ contains
         if (col%itype(c) == icol_roof .or. col%itype(c) == icol_road_imperv) then
            ! If there are snow layers then all qflx_rain_plus_snomelt goes to surface runoff
            if (snl(c) < 0) then
-              qflx_surf(c) = max(0._r8,qflx_rain_plus_snomelt(c) + qflx_liqdew_to_snow(c))
+              qflx_surf(c) = max(0._r8,qflx_rain_plus_snomelt(c))
+              !scs: qflx_liqdew_to_snow(c) is applied in snowhydrology (utlf)
+!              qflx_surf(c) = max(0._r8,qflx_rain_plus_snomelt(c) + qflx_liqdew_to_snow(c))
            else
               ! NOTE(wjs, 2017-07-11) It looks to me like this use of xs_urban and
               ! h2osoi_liq(c,1) are roughly analogous to h2osfc in hydrologically-active
               ! columns. Why not use h2osfc for urban columns, too?
               xs_urban(c) = max(0._r8, &
-                   h2osoi_liq(c,1)/dtime + qflx_rain_plus_snomelt(c) + qflx_liqdew_to_soil(c) - qflx_liqevap_from_soil(c) - &
-                   pondmx_urban/dtime)
+                   h2osoi_liq(c,1)/dtime &
+                   + qflx_rain_plus_snomelt(c) &
+                   + qflx_liqdew_to_soil(c) &
+                   - qflx_liqevap_from_soil(c) &
+                   - pondmx_urban/dtime)
               qflx_surf(c) = xs_urban(c)
            end if
            ! send flood water flux to runoff for all urban columns
@@ -1756,7 +1756,7 @@ contains
      character(len=32) :: subname = 'PerchedLateralFlowHillslope' ! subroutine name
      integer  :: c,fc,k,l,g                       ! indices
      real(r8) :: dtime                            ! land model time step (sec)
-     real(r8) :: drainage_tot                     ! total amount of drainage to be removed from the column (mm/s)
+     real(r8) :: drainage_total                     ! total amount of drainage to be removed from the column (mm/s)
      real(r8) :: drainage_layer                   ! amount of drainage to be removed from current layer (mm/s)
      real(r8) :: s_y                              ! specific yield (unitless)
      integer  :: k_frost(bounds%begc:bounds%endc) ! indices identifying frost table layer
@@ -1773,6 +1773,7 @@ contains
      integer  :: c0, c_src, c_dst                 ! indices
      real(r8) :: qflx_drain_perched_vol(bounds%begc:bounds%endc)   ! volumetric lateral subsurface flow through active layer [m3/s]
      real(r8) :: qflx_drain_perched_out(bounds%begc:bounds%endc)   ! lateral subsurface flow through active layer [mm/s]
+     real(r8) :: zwt_perched_during_drainage      ! temporary accounting of perched water table changes during removal of subsurface drainage (m)
 
      associate(                                                            & 
           nbedrock           =>    col%nbedrock                          , & ! Input:  [real(r8) (:,:) ]  depth to bedrock (m)
@@ -1985,29 +1986,32 @@ contains
           c = filter_hydrologyc(fc)
           
           ! remove drainage from perched saturated layers
-          drainage_tot = qflx_drain_perched(c) * dtime
+          drainage_total = qflx_drain_perched(c) * dtime
+          zwt_perched_during_drainage = zwt_perched(c)
+          
           ! ignore frozen layer (k_frost)
           do k = k_perch(c), k_frost(c)-1
 
              s_y = watsat(c,k) &
-                  * ( 1. - (1.+1.e3*zwt_perched(c)/sucsat(c,k))**(-1./bsw(c,k)))
+                  * ( 1. - (1.+1.e3_r8*zwt_perched_during_drainage/sucsat(c,k))**(-1./bsw(c,k)))
              s_y=max(s_y,params_inst%aq_sp_yield_min)
              if (k==k_perch(c)) then
-                drainage_layer=min(drainage_tot,(s_y*(zi(c,k) - zwt_perched(c))*1.e3))
+                drainage_layer=min(drainage_total,(s_y*(zi(c,k) - zwt_perched_during_drainage)*1.e3_r8))
              else
-                drainage_layer=min(drainage_tot,(s_y*(dz(c,k))*1.e3))
+                drainage_layer=min(drainage_total,(s_y*(dz(c,k))*1.e3_r8))
              endif
+             zwt_perched_during_drainage = zi(c,k)
              
              drainage_layer=max(drainage_layer,0._r8)
-             drainage_tot = drainage_tot - drainage_layer
+             drainage_total = drainage_total - drainage_layer
              h2osoi_liq(c,k) = h2osoi_liq(c,k) - drainage_layer
              
           enddo
 
-          ! if drainage_tot is greater than available water
+          ! if drainage_total is greater than available water
           ! (above frost table), then decrease qflx_drain_perched
           ! by residual amount for water balance
-          qflx_drain_perched(c) = qflx_drain_perched(c) - drainage_tot/dtime
+          qflx_drain_perched(c) = qflx_drain_perched(c) - drainage_total/dtime
        enddo
 
      end associate
@@ -2152,7 +2156,6 @@ contains
      real(r8) :: xs(bounds%begc:bounds%endc)             ! water needed to bring soil moisture to watmin (mm)
      real(r8) :: dzmm(bounds%begc:bounds%endc,1:nlevsoi) ! layer thickness (mm)
      integer  :: jwt(bounds%begc:bounds%endc)            ! index of the soil layer right above the water table (-)
-     real(r8) :: drainage(bounds%begc:bounds%endc)       ! subsurface drainage (mm/s)
      real(r8) :: xsi(bounds%begc:bounds%endc)            ! excess soil water above saturation at layer i (mm)
      real(r8) :: xs1(bounds%begc:bounds%endc)            ! excess soil water above saturation at layer 1 (mm)
      real(r8) :: dzsum                                   ! summation of dzmm of layers below water table (mm)
@@ -2176,12 +2179,12 @@ contains
      real(r8) :: qflx_latflow_out_vol(bounds%begc:bounds%endc) ! volumetric lateral flow (m3/s)
      real(r8) :: qflx_net_latflow(bounds%begc:bounds%endc)     ! net lateral flow in column (mm/s)
      real(r8) :: qflx_latflow_avg(bounds%begc:bounds%endc)     ! average lateral flow (mm/s)
-     real(r8) :: zwt_during_drainage(bounds%begc:bounds%endc)  ! temporary accounting of water table changes during removal of subsurface drainage (m)
+     real(r8) :: zwt_during_drainage              ! temporary accounting of water table changes during removal of subsurface drainage (m)
      real(r8) :: larea                            ! area of hillslope in landunit
      integer  :: c0, c_src, c_dst                 ! indices
 
 !scs
-     real(r8), parameter :: oversaturation_threshold = 1.e-12_r8 ! area of hillslope in landunit
+     real(r8), parameter :: oversaturation_threshold = 1.e-12_r8 ! oversaturation check
 
      !-----------------------------------------------------------------------
 
@@ -2245,7 +2248,6 @@ contains
           c = filter_hydrologyc(fc)
           qflx_drain(c)    = 0._r8 
           qflx_rsub_sat(c) = 0._r8
-          drainage(c)      = 0._r8
           qflx_latflow_in(c) = 0._r8
           qflx_latflow_out(c) = 0._r8
           qflx_net_latflow(c) = 0._r8
@@ -2483,7 +2485,7 @@ contains
          drainage_total = qflx_net_latflow(c) * dtime
          
          ! local accounting of water table changes used to update specific yield during subsurface drainage
-         zwt_during_drainage(c) = zwt(c)
+         zwt_during_drainage = zwt(c)
          qflx_drain_lyr(c,:) = 0._r8
 
          if (drainage_total < 0.) then
@@ -2497,10 +2499,10 @@ contains
 
                   ! should this be based on effective porosity?
                   !s_y = eff_porosity(c,j) &
-                  !     * ( 1. - (1.+1.e3*zwt_during_drainage(c)/sucsat(c,j))**(-1./bsw(c,j)))
+                  !     * ( 1. - (1.+1.e3*zwt_during_drainage/sucsat(c,j))**(-1./bsw(c,j)))
 
                   s_y = watsat(c,j) &
-                       * ( 1. - (1.+1.e3*zwt_during_drainage(c)/sucsat(c,j))**(-1./bsw(c,j)))
+                       * ( 1. - (1.+1.e3*zwt_during_drainage/sucsat(c,j))**(-1./bsw(c,j)))
                   s_y = max(s_y,params_inst%aq_sp_yield_min)
 
                   drainage_layer = max(drainage_total,(-s_y*dz(c,j)*1.e3))
@@ -2512,10 +2514,10 @@ contains
 
                   ! adjust water table for next layer's specific yield calculation
                   if (drainage_total <= 0.) then 
-                     zwt_during_drainage(c) = zwt_during_drainage(c) - drainage_layer/s_y/1000._r8
+                     zwt_during_drainage = zwt_during_drainage - drainage_layer/s_y/1000._r8
                      exit
                   else
-                     zwt_during_drainage(c) = zi(c,j-1)
+                     zwt_during_drainage = zi(c,j-1)
                   endif
                endif
                   
@@ -2529,10 +2531,10 @@ contains
              do j = jwt(c)+1, nbedrock(c)
                 ! analytical expression for specific yield
                 s_y = watsat(c,j) &
-                     * ( 1. - (1.+1.e3*zwt_during_drainage(c)/sucsat(c,j))**(-1./bsw(c,j)))
+                     * ( 1. - (1.+1.e3*zwt_during_drainage/sucsat(c,j))**(-1./bsw(c,j)))
                 s_y = max(s_y,params_inst%aq_sp_yield_min)
                 
-                drainage_layer = min(drainage_total,(s_y*(zi(c,j) - zwt_during_drainage(c))*1.e3))
+                drainage_layer = min(drainage_total,(s_y*(zi(c,j) - zwt_during_drainage)*1.e3))
                 drainage_layer = max(drainage_layer,0._r8)
 
                 drainage_total = drainage_total - drainage_layer
@@ -2541,15 +2543,15 @@ contains
 
                 ! adjust water table for next layer's specific yield calculation
                 if (drainage_total >= 0.) then 
-                   zwt_during_drainage(c) = zwt_during_drainage(c) - drainage_layer/s_y/1000._r8
+                   zwt_during_drainage = zwt_during_drainage - drainage_layer/s_y/1000._r8
                    exit
                 else
-                   zwt_during_drainage(c) = zi(c,j)
+                   zwt_during_drainage = zi(c,j)
                 endif
              enddo
 
             ! if drainage_total is non-zero after loop over layers, it means that there was insufficient soil moisture for drainage
-             ! in that case, adjust drainage to account for mismatch between drainage and sum of qflx_drain_lyr*dtime
+             ! in that case, adjust drainage to account for mismatch between initial drainage and sum of qflx_drain_lyr*dtime
              !drainage(c) = drainage(c) + drainage_total/dtime
              qflx_net_latflow(c) = sum(qflx_drain_lyr(c,:))
              
@@ -2603,13 +2605,23 @@ contains
              h2osfc(c) = h2osfc(c) + qflx_exfl(c)*dtime
           endif
           ! add in ice check
-          xs1(c)          = max(max(h2osoi_ice(c,1),0._r8)-max(0._r8,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1))),0._r8)
-          h2osoi_ice(c,1) = min(max(0._r8,pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1)), h2osoi_ice(c,1))
-          qflx_ice_runoff_xs(c) = xs1(c) / dtime
+          ! the calculation of eff_por has a min of 0.01, which implies less ice?
+          xs1(c) = max(h2osoi_ice(c,1)-(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1)),0._r8)
 
+          ! want to remove this by not going over
+          if(1==2) then
+             xs1(c) = max(max(h2osoi_ice(c,1),0._r8)-max(0._r8,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1))),0._r8)
+             h2osoi_ice(c,1) = min(max(0._r8,pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1)), h2osoi_ice(c,1))
+             qflx_ice_runoff_xs(c) = xs1(c) / dtime
+          endif
+          
           !scs
           if( xs1(c) > oversaturation_threshold) then
-             write(iulog,*) 'xs1ice_err ',c, xs1(c)
+             write(iulog,*) 'xs1ice_err  ',c, xs1(c)
+             write(iulog,*) 'xs1ice_err2 ',c, h2osoi_ice(c,1),h2osoi_liq(c,1),watsat(c,1)*dzmm(c,1)
+             write(iulog,*) 'xs1ice_err3 ',c, watsat(c,1)*dzmm(c,1)-(h2osoi_ice(c,1)+h2osoi_liq(c,1))
+             write(iulog,*) 'xs1ice_err4 ',c, max(max(h2osoi_ice(c,1),0._r8)-max(0._r8,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1))),0._r8),h2osoi_ice(c,1)-(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1))
+             write(iulog,*) 'xs1ice_err5 ',c, eff_porosity(c,1),h2osoi_ice(c,j)/(dz(c,j)*denice)
              call endrun(subgrid_index=c, &
                   subgrid_level=subgrid_level_column, &
                   msg="xs1ice_err in soilhydrologymod")
