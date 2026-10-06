@@ -56,6 +56,7 @@ contains
     use clm_varpar       , only : nlevgrnd, nlevurb
     use clm_time_manager , only : get_step_size_real, get_nstep
     use SoilHydrologyMod , only : CLMVICMap, Drainage, PerchedLateralFlow, SubsurfaceLateralFlow
+    use SoilHydrologyMod     , only : PerchedWaterTable,ThetaBasedWaterTable
     use SoilWaterMovementMod , only : use_aquifer_layer
     use HillslopeHydrologyMod, only : streamflow_manning, HillslopeStreamOutflow, HillslopeUpdateStreamWater
     !
@@ -140,6 +141,13 @@ contains
                  soilhydrology_inst, soilstate_inst, &
                  waterstatebulk_inst, waterfluxbulk_inst, &
                  wateratm2lndbulk_inst)
+
+         call PerchedWaterTable(bounds, &
+              num_hydrologyc, filter_hydrologyc, &
+              num_urbanc, filter_urbanc, &
+              soilhydrology_inst, soilstate_inst, &
+              temperature_inst, waterstatebulk_inst, waterfluxbulk_inst) 
+
          call SubsurfaceLateralFlow(bounds, &
                  num_hydrologyc, filter_hydrologyc, &
                  num_urbanc, filter_urbanc,&
@@ -147,6 +155,12 @@ contains
                  waterstatebulk_inst, waterfluxbulk_inst, &
                  wateratm2lndbulk_inst)
 
+         call ThetaBasedWaterTable(bounds, &
+              num_hydrologyc, filter_hydrologyc, &
+              num_urbanc, filter_urbanc, &
+              soilhydrology_inst, soilstate_inst, &
+              waterstatebulk_inst, waterfluxbulk_inst)
+         
          if (use_hillslope_routing) then
             call HillslopeStreamOutflow(bounds,&
                  waterstatebulk_inst, waterfluxbulk_inst, &

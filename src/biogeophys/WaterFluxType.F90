@@ -72,13 +72,15 @@ module WaterFluxType
      real(r8), pointer :: qflx_liqdew_to_top_layer_col(:)     ! col rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
 
      real(r8), pointer :: qflx_infl_col            (:)   ! col infiltration (mm H2O /s)
+     real(r8), pointer :: qflx_exfl_col            (:)   ! col exfiltration (mm H2O /s)
      real(r8), pointer :: qflx_surf_col            (:)   ! col total surface runoff (mm H2O /s)
      real(r8), pointer :: qflx_drain_col           (:)   ! col sub-surface runoff (mm H2O /s)
      real(r8), pointer :: qflx_latflow_in_col      (:)   ! col hillslope lateral flow input (mm/s)
      real(r8), pointer :: qflx_latflow_out_col     (:)   ! col hillslope lateral flow output (mm/s)
      real(r8), pointer :: volumetric_discharge_col (:)   ! col hillslope discharge (m3/s)
      real(r8), pointer :: volumetric_streamflow_lun(:)   ! lun stream discharge (m3/s)
-     real(r8), pointer :: qflx_drain_perched_col   (:)   ! col sub-surface runoff from perched wt (mm H2O /s)                                                                                                      
+     real(r8), pointer :: qflx_drain_perched_col   (:)   ! col sub-surface runoff from perched wt (mm H2O /s)
+     real(r8), pointer :: qflx_drain_lyr_col(:,:)        ! col subsurface runoff flux, separated by layer (mm H2O/s)
      real(r8), pointer :: qflx_top_soil_col        (:)   ! col net water input into soil from top (mm/s)
      real(r8), pointer :: qflx_floodc_col          (:)   ! col flood water flux at column level
      real(r8), pointer :: qflx_sl_top_soil_col     (:)   ! col liquid water + ice from layer above soil to top soil layer or sent to qflx_qrgwl (mm H2O/s)
@@ -278,6 +280,9 @@ contains
     call AllocateVar1d(var = this%qflx_infl_col, name = 'qflx_infl_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
+    call AllocateVar1d(var = this%qflx_exfl_col, name = 'qflx_exfl_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = subgrid_level_column)
     call AllocateVar1d(var = this%qflx_surf_col, name = 'qflx_surf_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
@@ -287,6 +292,10 @@ contains
     call AllocateVar1d(var = this%qflx_drain_perched_col, name = 'qflx_drain_perched_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)
+    call AllocateVar2d(var = this%qflx_drain_lyr_col, name = 'qflx_drain_lyr_col', &
+         container = tracer_vars, &
+         bounds = bounds, subgrid_level = subgrid_level_column, &
+         dim2beg = 1, dim2end = nlevsoi)
     call AllocateVar1d(var = this%qflx_latflow_in_col, name = 'qflx_latflow_in_col', &
          container = tracer_vars, &
          bounds = bounds, subgrid_level = subgrid_level_column)

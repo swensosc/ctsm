@@ -1168,6 +1168,7 @@ contains
          hk_l              =>    soilstate_inst%hk_l_col            , & ! Input:  [real(r8) (:,:) ]  hydraulic conductivity (mm/s)                   
          h2osoi_ice        =>    waterstatebulk_inst%h2osoi_ice_col , & ! Input:  [real(r8) (:,:) ]  ice water (kg/m2)                               
          h2osoi_liq        =>    waterstatebulk_inst%h2osoi_liq_col , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)                            
+         qflx_exfl         =>    waterfluxbulk_inst%qflx_exfl_col   , & ! Output: [real(r8) (:)   ]  exfiltration (mm/s)
          qflx_rootsoi_col  =>    waterfluxbulk_inst%qflx_rootsoi_col  &   
          )  ! end associate statement
 
@@ -1189,6 +1190,9 @@ contains
          ! initialize substeps
          dtsub = dtime   ! length of the substep
          dtdone = 0._r8  ! substep completed
+
+         ! initialize exfiltration
+         qflx_exfl(c) = 0._r8
 
          ! initialize qcharge
          qcharge(c) = 0._r8
@@ -1407,6 +1411,12 @@ contains
             h2osoi_liq(c,j)   = min(eff_porosity(c,j)*m_to_mm*dz(c,j), h2osoi_liq(c,j))
             h2osoi_liq(c,j-1) = h2osoi_liq(c,j-1) + over_saturation
          end do
+
+         ! if top layer is oversaturated, send excess to h2osfc via qflx_exfl
+         j = 1
+         over_saturation = max(h2osoi_liq(c,j)-(eff_porosity(c,j)*m_to_mm*dz(c,j)),0._r8)
+         qflx_exfl(c) = over_saturation/dtime
+         h2osoi_liq(c,j) = h2osoi_liq(c,j) - qflx_exfl(c)*dtime
 
          ! check for negative moisture values
          do j = 2, nlayers
