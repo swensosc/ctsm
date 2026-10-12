@@ -386,11 +386,7 @@ contains
             else
                s_node = max(h2osoi_liqvol(c,j)/eff_porosity(c,j),0.01_r8)
 
-               !smp_node = max(smpsc(patch%itype(p)), -sucsat(c,j)*s_node**(-bsw(c,j)))
-!               call soil_water_retention_curve%soil_suction(sucsat(c,j), s_node, bsw(c,j), smp_node)
-!scs
                call soil_water_retention_curve%soil_suction(c, j, s_node, soilstate_inst, smp_node)
-!scs
                smp_node = max(smpsc(patch%itype(p)), smp_node)
 
                rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &

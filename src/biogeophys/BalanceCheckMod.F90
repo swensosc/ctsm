@@ -536,15 +536,13 @@ contains
           qflx_ice_runoff_grc     =>    waterlnd2atm_inst%qflx_rofice_grc       , & ! Input:  [real(r8) (:)   ] grid cell-level solid runoff from snow capping and from excess ice in soil (mm H2O /s)
           qflx_sl_top_soil        =>    waterflux_inst%qflx_sl_top_soil_col     , & ! Input:  [real(r8) (:)   ]  liquid water + ice from layer above soil to top soil layer or sent to qflx_qrgwl (mm H2O/s)
 
-          !scs
-          qflx_liqevap_from_soil   => waterflux_inst%qflx_liqevap_from_soil_col  , &
-          qflx_liqdew_to_soil      => waterflux_inst%qflx_liqdew_to_soil_col , &
-          qflx_solidevap_from_soil   => waterflux_inst%qflx_solidevap_from_soil_col  , &
-          qflx_soliddew_to_soil      => waterflux_inst%qflx_soliddew_to_soil_col , &
+          qflx_liqevap_from_soil   => waterflux_inst%qflx_liqevap_from_soil_col , & ! col rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]    
+          qflx_liqdew_to_soil      => waterflux_inst%qflx_liqdew_to_soil_col    , & ! col rate of liquid water deposited on top soil or snow layer (dew) (mm H2O /s) [+]
+          qflx_solidevap_from_soil   => waterflux_inst%qflx_solidevap_from_soil_col , & ! col rate of ice evaporated from top soil or snow layer (sublimation) (mm H2O /s) [+]
+          qflx_soliddew_to_soil      => waterflux_inst%qflx_soliddew_to_soil_col    , & ! col rate of solid water deposited on top soil or snow layer (frost) (mm H2O /s) [+] (+ = to atm); usually eflx_bot >= 0)
           qflx_evap_soi           => waterflux_inst%qflx_evap_soi_col     , & ! Output: [real(r8) (:)   ]  soil evaporation (mm H2O/s) (+ = to atm)
           qflx_evap_veg           => waterflux_inst%qflx_evap_veg_col     , & ! Output: [real(r8) (:)   ]  vegetation evaporation (mm H2O/s) (+ = to atm)
           qflx_tran_veg           => waterflux_inst%qflx_tran_veg_col      , & ! Input:  [real(r8) (:)   ]  vegetation transpiration (mm H2O/s) (+ = to atm)
-
           
           qflx_sfc_irrig_col      =>    waterflux_inst%qflx_sfc_irrig_col       , & ! Input:  [real(r8) (:)   ]  column level irrigation flux (mm H2O /s)
           qflx_sfc_irrig_grc      =>    waterlnd2atm_inst%qirrig_grc            , & ! Input:  [real(r8) (:)   ]  grid cell-level irrigation flux (mm H20 /s)
@@ -614,11 +612,6 @@ contains
            indexc = maxloc( abs(errh2o_col(bounds%begc:bounds%endc)), 1 ) + bounds%begc - 1
            global_index = get_global_index(subgrid_index=indexc, subgrid_level=subgrid_level_column)
 
-           !scs
-           if (indexc==-66) then
-              errh2o_max_val = 1._r8
-           endif
-           
            write(iulog,*)'WARNING:  column-level water balance error ',&
              ' nstep= ',nstep, &
              ' local indexc= ',indexc,&
