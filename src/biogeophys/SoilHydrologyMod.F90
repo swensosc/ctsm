@@ -326,8 +326,6 @@ contains
       call p2c (bounds, num_modc, filter_modc, &
            waterfluxbulk_inst%qflx_liqevap_from_soil_patch(bounds%begp:bounds%endp), &
            waterfluxbulk_inst%qflx_liqevap_from_soil_col(bounds%begc:bounds%endc))      
-    !       errsoi_patch(bounds%begp:bounds%endp), &
-      !           errsoi_col(bounds%begc:bounds%endc))
       
     end associate 
 
