@@ -2484,7 +2484,7 @@ contains
           c = filter_hydrologyc(fc)
 
           ! use definition from soilwatermovement
-          xs1(c) = max(h2osoi_liq(c,1)-(eff_porosity(c,1)*dzmm(c,1)),0._r8)
+          xs1(c) = max((h2osoi_liq(c,1)-watmin)-(eff_porosity(c,1)*dzmm(c,1)),0._r8)
 
 !!$          if( xs1(c) > oversaturation_threshold) then
 !!$             write(iulog,*) 'xs1err ',c, xs1(c),h2osoi_liq(c,1)-watmin,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_ice(c,1)-watmin)

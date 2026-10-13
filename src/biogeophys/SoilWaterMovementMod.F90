@@ -1407,14 +1407,14 @@ contains
 
          ! check for over-saturated layers and move excess upward
          do j = nlayers,2,-1
-            over_saturation   = max(h2osoi_liq(c,j)-(eff_porosity(c,j)*m_to_mm*dz(c,j)),0._r8)
+            over_saturation   = max((h2osoi_liq(c,j)-watmin)-(eff_porosity(c,j)*m_to_mm*dz(c,j)),0._r8)
             h2osoi_liq(c,j)   = min(eff_porosity(c,j)*m_to_mm*dz(c,j), h2osoi_liq(c,j))
             h2osoi_liq(c,j-1) = h2osoi_liq(c,j-1) + over_saturation
          end do
 
          ! if top layer is oversaturated, send excess to h2osfc via qflx_exfl
          j = 1
-         over_saturation = max(h2osoi_liq(c,j)-(eff_porosity(c,j)*m_to_mm*dz(c,j)),0._r8)
+         over_saturation = max((h2osoi_liq(c,j)-watmin)-(eff_porosity(c,j)*m_to_mm*dz(c,j)),0._r8)
          qflx_exfl(c) = over_saturation/dtime
          h2osoi_liq(c,j) = h2osoi_liq(c,j) - qflx_exfl(c)*dtime
 
