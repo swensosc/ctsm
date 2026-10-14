@@ -328,7 +328,9 @@ contains
       do fc = 1, num_hydrologyc
          c = filter_hydrologyc(fc)
          qflx_liq_snow_input(c) = h2osno_liq_residual(c)/dtime
+         ! these variables must be initialized in the hydrology filter b/c combinesnowlayers only has access to the snow filter; so they can't be fully intialized there...
          qflx_liq_snow_removal(c) = 0._r8
+         h2osno_liq_residual(c)   = 0._r8
       end do
       
     end associate
