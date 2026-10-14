@@ -1054,7 +1054,7 @@ contains
     use abortutils           , only : endrun
     use decompMod            , only : bounds_type, subgrid_level_column
     use clm_varctl           , only : iulog, use_hydrstress
-    use clm_varcon           , only : denh2o, denice
+    use clm_varcon           , only : denh2o, denice, watmin
     use clm_varpar           , only : nlevsoi
     use clm_time_manager     , only : get_step_size_real, get_nstep
     use SoilStateType        , only : soilstate_type
@@ -1147,7 +1147,7 @@ contains
     real(r8) :: vLiqIter(bounds%begc:bounds%endc,1:nlevsoi)   !  iteration increment for the volumetric liquid water content (v/v)
     real(r8) :: vLiqRes(bounds%begc:bounds%endc,1:nlevsoi)   ! residual for the volumetric liquid water content (v/v)
 
-    real(r8) :: over_saturation  ! Amount of water that over saturates this soil layer [kg/m2]
+    real(r8) :: over_saturation_flux  ! upward flux of water from oversaturated soil layer [mm/s]
     !-----------------------------------------------------------------------
 
     associate(&
@@ -1407,15 +1407,14 @@ contains
 
          ! check for over-saturated layers and move excess upward
          do j = nlayers,2,-1
-            over_saturation   = max((h2osoi_liq(c,j)-watmin)-(eff_porosity(c,j)*m_to_mm*dz(c,j)),0._r8)
-            h2osoi_liq(c,j)   = min(eff_porosity(c,j)*m_to_mm*dz(c,j), h2osoi_liq(c,j))
-            h2osoi_liq(c,j-1) = h2osoi_liq(c,j-1) + over_saturation
+            over_saturation_flux   = max(h2osoi_liq(c,j)-max(eff_porosity(c,j)*m_to_mm*dz(c,j),watmin),0._r8)/dtime
+            h2osoi_liq(c,j)   = h2osoi_liq(c,j)   - over_saturation_flux*dtime
+            h2osoi_liq(c,j-1) = h2osoi_liq(c,j-1) + over_saturation_flux*dtime
          end do
 
          ! if top layer is oversaturated, send excess to h2osfc via qflx_exfl
          j = 1
-         over_saturation = max((h2osoi_liq(c,j)-watmin)-(eff_porosity(c,j)*m_to_mm*dz(c,j)),0._r8)
-         qflx_exfl(c) = over_saturation/dtime
+         qflx_exfl(c) = max(h2osoi_liq(c,j)-max(eff_porosity(c,j)*m_to_mm*dz(c,j),watmin),0._r8)/dtime
          h2osoi_liq(c,j) = h2osoi_liq(c,j) - qflx_exfl(c)*dtime
 
          ! check for negative moisture values
