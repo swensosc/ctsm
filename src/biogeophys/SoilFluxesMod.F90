@@ -266,8 +266,6 @@ contains
                if (h2osoi_liq(c,1) > watmin) then
                   qflx_liqevap_from_soil(p) = qflx_ev_soil(p) &
                        *(h2osoi_liq(c,1)/(h2osoi_liq(c,1)+h2osoi_ice(c,1)))
-                  ! limit liquid evap from top soil layer by watmin
-                  qflx_liqevap_from_soil(p) = min(qflx_liqevap_from_soil(p),(h2osoi_liq(c,1)-watmin)/dtime)
                else
                   qflx_liqevap_from_soil(p) = 0._r8
                end if
@@ -309,8 +307,6 @@ contains
                 if (h2osoi_liq(c,1) > watmin) then
                   qflx_liqevap_from_soil(p) = qflx_ev_soil(p) &
                        *(h2osoi_liq(c,1)/(h2osoi_liq(c,1)+h2osoi_ice(c,1)))
-                  ! limit liquid evap from top soil layer by watmin
-                  qflx_liqevap_from_soil(p) = min(qflx_liqevap_from_soil(p),(h2osoi_liq(c,1)-watmin)/dtime)
                else
                   qflx_liqevap_from_soil(p) = 0._r8
                end if
@@ -380,7 +376,6 @@ contains
                eflx_sh_grnd(p) = eflx_sh_grnd(p) + soil_fraction*(evaporation_demand - evaporation_limit)*htvp(c)
                
             endif
-            qflx_ev_soil(p) = qflx_evap_soi(p)
          endif
       enddo
       

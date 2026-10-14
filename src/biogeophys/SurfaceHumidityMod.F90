@@ -11,7 +11,7 @@ module SurfaceHumidityMod
   use shr_kind_mod            , only : r8 => shr_kind_r8
   use decompMod               , only : bounds_type
   use abortutils              , only : endrun
-  use clm_varcon              , only : denh2o, denice, roverg, tfrz, spval 
+  use clm_varcon              , only : denh2o, denice, roverg, tfrz, spval, watmin
   use column_varcon           , only : icol_roof, icol_sunwall, icol_shadewall
   use column_varcon           , only : icol_road_imperv, icol_road_perv
   use landunit_varcon         , only : istice, istwet, istsoil, istcrop
@@ -131,11 +131,8 @@ contains
          if (lun%itype(l)/=istwet .AND. lun%itype(l)/=istice) then
 
             if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
-               wx   = (h2osoi_liq(c,1)/denh2o+h2osoi_ice(c,1)/denice)/dz(c,1)
-!scs: it should be liquid water not total water (as in richards eqn)
-               wx   = (h2osoi_liq(c,1)/denh2o)/dz(c,1)
+               wx   = (max(h2osoi_liq(c,1),watmin)/denh2o)/dz(c,1)
                fac  = min(1._r8, wx/watsat(c,1))
-!scs               fac  = max( fac, 0.01_r8 )
                psit = -sucsat(c,1) * fac ** (-bsw(c,1))
                psit = max(smpmin(c), psit)
                ! modify qred to account for h2osfc

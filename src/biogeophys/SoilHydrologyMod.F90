@@ -41,6 +41,7 @@ module SoilHydrologyMod
   save
   !
   ! !PUBLIC MEMBER FUNCTIONS:
+  public :: AdjustNegativeSoilMoistureEvaporation ! Adjust evaporation when top soil layer becomes negative
   public :: SetSoilWaterFractions ! Set diagnostic variables related to the fraction of water and ice in each layer
   public :: SetFloodc            ! Apply gridcell flood water flux to non-lake columns
   public :: SetLiqSnowRemoval    ! Convert residual liquid snow water to flux for input to land surface
@@ -201,6 +202,139 @@ contains
   end subroutine readParams
   
   !-----------------------------------------------------------------------
+  subroutine AdjustNegativeSoilMoistureEvaporation (bounds, &
+       num_hydrologyc, filter_hydrologyc, &
+       !num_nolakec, filter_nolakec, num_nolakep, filter_nolakep, &
+       energyflux_inst, &
+       waterstatebulk_inst, waterdiagnosticbulk_inst, waterfluxbulk_inst)
+    
+    !
+    ! !DESCRIPTION: 
+    ! Adjust evaporation when top soil layer becomes negative
+    !
+    ! !USES:
+    use clm_time_manager , only : get_step_size_real
+    use clm_varcon       , only : hvap, watmin
+    use landunit_varcon  , only : istsoil, istcrop
+    use column_varcon    , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv
+    use subgridAveMod    , only : p2c
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)      , intent(in)    :: bounds    
+    integer                , intent(in)    :: num_hydrologyc                      ! number of column non-lake points in pft filter
+    integer                , intent(in)    :: filter_hydrologyc(:)                ! patch filter for non-lake points
+    type(waterstatebulk_type)  , intent(inout)    :: waterstatebulk_inst
+    type(waterdiagnosticbulk_type)  , intent(in)    :: waterdiagnosticbulk_inst
+    type(waterfluxbulk_type)   , intent(inout) :: waterfluxbulk_inst
+    type(energyflux_type)      , intent(inout) :: energyflux_inst
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: p,c,fc                                             ! indices
+    real(r8) :: dtime                                              ! land model time step (sec)
+    integer  :: filter_modc(bounds%endc-bounds%begc+1)             ! local filter
+    integer  :: num_modc                                           ! number of values in local filter
+    real(r8) :: evaporation_limit                                  ! top layer moisture available for evaporation
+    real(r8) :: evaporation_demand                                 ! evaporative demand 
+    real(r8) :: soil_fraction                                      ! fraction of top soil layer exposed to atmosphere
+    real(r8) :: new_soil_liquid                                    ! target value of top layer liquid soil moisture
+    real(r8) :: old_soil_liquid                                    ! original value of top layer liquid soil moisture 
+    real(r8) :: flux_adjustment                                    ! flux representing adjustment from old to new soil moisture values
+    !-----------------------------------------------------------------------
+
+    associate(                                                                &
+         frac_sno_fluxes            => waterdiagnosticbulk_inst%frac_sno_fluxes_col        , & ! Input:  [real(r8) (:)   ]  eff. fraction of ground covered by snow (0 to 1)
+         frac_h2osfc             => waterdiagnosticbulk_inst%frac_h2osfc_col         , & ! Input:  [real(r8) (:)   ]  fraction of ground covered by surface water (0 to 1)
+         h2osoi_ice              => waterstatebulk_inst%h2osoi_ice_col          , & ! Input:  [real(r8) (:,:) ]  ice lens (kg/m2) (new)                
+         h2osoi_liq              => waterstatebulk_inst%h2osoi_liq_col          , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2) (new)            
+
+         htvp                    => energyflux_inst%htvp_col                , & ! Input:  [real(r8) (:)   ]  latent heat of vapor of water (or sublimation) [j/kg]
+         
+         qflx_liqevap_from_soil  => waterfluxbulk_inst%qflx_liqevap_from_soil_patch  , & ! In/Out: [real(r8) (:)   ]  rate of liquid water evaporated from top soil or snow layer (mm H2O/s) [+]
+         qflx_ev_soil            => waterfluxbulk_inst%qflx_ev_soil_patch            , & ! In/Out: [real(r8) (:)   ]  evaporation flux from soil (mm H2O/s) [+ to atm]
+         qflx_evap_soi           => waterfluxbulk_inst%qflx_evap_soi_patch           , & ! Output: [real(r8) (:)   ]  soil evaporation (mm H2O/s) (+ = to atm)
+         qflx_evap_tot           => waterfluxbulk_inst%qflx_evap_tot_patch           , & ! Output: [real(r8) (:)   ]  qflx_evap_soi + qflx_evap_can + qflx_tran_veg
+
+         eflx_sh_soil            => energyflux_inst%eflx_sh_soil_patch      , & ! Input:  [real(r8) (:)   ]  sensible heat flux from soil (W/m**2) [+ to atm]
+         eflx_sh_grnd            => energyflux_inst%eflx_sh_grnd_patch      , & ! Output: [real(r8) (:)   ]  sensible heat flux from ground (W/m**2) [+ to atm]
+         eflx_sh_tot             => energyflux_inst%eflx_sh_tot_patch       , & ! Output: [real(r8) (:)   ]  total sensible heat flux (W/m**2) [+ to atm]
+         eflx_lh_tot             => energyflux_inst%eflx_lh_tot_patch       , & ! Output: [real(r8) (:)   ]  total latent heat flux (W/m**2)  [+ to atm]
+         eflx_lh_grnd            => energyflux_inst%eflx_lh_grnd_patch       & ! Output: [real(r8) (:)   ]  ground evaporation heat flux (W/m**2) [+ to atm]
+         )
+
+      ! Get step size
+
+      dtime = get_step_size_real()
+
+      ! initialize local filter counter
+      num_modc = 0
+      !
+
+      do fc = 1,num_hydrologyc
+         c = filter_hydrologyc(fc)
+         ! modify evaporation if h2osoi_liq(c,1) is below threshold
+         if(h2osoi_liq(c,1) < watmin) then
+            
+            if (col%snl(c) < 0) then
+               soil_fraction = (1._r8 - frac_sno_fluxes(c) - frac_h2osfc(c))
+            else
+               soil_fraction = (1._r8 - frac_h2osfc(c))
+            endif
+            
+            if (soil_fraction > 0._r8) then
+               ! update local filter
+               num_modc = num_modc + 1
+               filter_modc(num_modc) = c
+
+               if(h2osoi_liq(c,1) < 0._r8) then
+                  write(iulog,*) 'adjusting negative soil moisture ',c,h2osoi_liq(c,1)
+               endif
+               
+               new_soil_liquid = watmin
+               old_soil_liquid = h2osoi_liq(c,1)               
+               flux_adjustment = (new_soil_liquid - old_soil_liquid)/dtime
+               h2osoi_liq(c,1) = watmin
+               do p = col%patchi(c), col%patchf(c)
+                  ! qflx_liqevap_from_soil and qflx_ev_soil are applied to the soil_fraction area, while qflx_evap_soi and qflx_evap_tot represents the entire area
+
+                  qflx_liqevap_from_soil(p) = qflx_liqevap_from_soil(p) &
+                       - (flux_adjustment/soil_fraction)
+                  qflx_ev_soil(p) = qflx_ev_soil(p) &
+                       - (flux_adjustment/soil_fraction)
+                  qflx_evap_soi(p) = qflx_evap_soi(p) - flux_adjustment
+                  qflx_evap_tot(p) = qflx_evap_tot(p) - flux_adjustment
+                  
+                  ! conserve total energy flux
+                  eflx_sh_soil(p) = eflx_sh_soil(p) - (flux_adjustment/soil_fraction)
+                  eflx_sh_grnd(p) = eflx_sh_grnd(p) + htvp(c)*flux_adjustment
+                  eflx_lh_tot(p)  = eflx_lh_tot(p)  - htvp(c)*flux_adjustment
+                  eflx_sh_tot(p)  = eflx_sh_tot(p)  + htvp(c)*flux_adjustment
+               enddo
+            endif
+         endif
+      enddo
+
+      ! update column level variables
+      call p2c (bounds, num_modc, filter_modc, &
+           waterfluxbulk_inst%qflx_ev_soil_patch(bounds%begp:bounds%endp), &
+           waterfluxbulk_inst%qflx_ev_soil_col(bounds%begc:bounds%endc))
+      
+      call p2c (bounds, num_modc, filter_modc, &
+           waterfluxbulk_inst%qflx_evap_soi_patch(bounds%begp:bounds%endp), &
+           waterfluxbulk_inst%qflx_evap_soi_col(bounds%begc:bounds%endc))
+      
+      call p2c (bounds, num_modc, filter_modc, &
+           waterfluxbulk_inst%qflx_evap_tot_patch(bounds%begp:bounds%endp), &
+           waterfluxbulk_inst%qflx_evap_tot_col(bounds%begc:bounds%endc))
+      
+      call p2c (bounds, num_modc, filter_modc, &
+           waterfluxbulk_inst%qflx_liqevap_from_soil_patch(bounds%begp:bounds%endp), &
+           waterfluxbulk_inst%qflx_liqevap_from_soil_col(bounds%begc:bounds%endc))
+      
+    end associate 
+
+  end subroutine AdjustNegativeSoilMoistureEvaporation
+  
+  !-----------------------------------------------------------------------
   subroutine SetSoilWaterFractions(bounds, num_hydrologyc, filter_hydrologyc, &
        soilhydrology_inst, soilstate_inst, waterstatebulk_inst)
     !
@@ -331,6 +465,7 @@ contains
          c = filter_hydrologyc(fc)
          qflx_liq_snow_input(c) = h2osno_liq_residual(c)/dtime
          qflx_liq_snow_removal(c) = 0._r8
+         h2osno_liq_residual(c)   = 0._r8
       end do
       
     end associate
@@ -2521,8 +2656,7 @@ contains
                   qflx_drain_lyr(c,j) = drainage_layer/dtime
 
                   ! adjust water table for next layer's specific yield calculation
-                  if (drainage_total <= 0.) then 
-                     zwt_during_drainage = zwt_during_drainage - drainage_layer/s_y/1000._r8
+                  if (drainage_total >= 0.) then 
                      exit
                   else
                      zwt_during_drainage = zi(c,j-1)
@@ -2550,8 +2684,7 @@ contains
                 qflx_drain_lyr(c,j) = drainage_layer/dtime
 
                 ! adjust water table for next layer's specific yield calculation
-                if (drainage_total >= 0.) then 
-                   zwt_during_drainage = zwt_during_drainage - drainage_layer/s_y/1000._r8
+                if (drainage_total <= 0.) then 
                    exit
                 else
                    zwt_during_drainage = zi(c,j)
@@ -2577,8 +2710,8 @@ contains
        do j = nlevsoi,2,-1
           do fc = 1, num_hydrologyc
              c = filter_hydrologyc(fc)
-             xsi(c)            = max(h2osoi_liq(c,j)-eff_porosity(c,j)*dzmm(c,j),0._r8)
-             h2osoi_liq(c,j)   = min(eff_porosity(c,j)*dzmm(c,j), h2osoi_liq(c,j))
+             xsi(c) = max(h2osoi_liq(c,j)-max(eff_porosity(c,j)*dzmm(c,j),watmin),0._r8)
+             h2osoi_liq(c,j)   = h2osoi_liq(c,j)   - xsi(c)
              h2osoi_liq(c,j-1) = h2osoi_liq(c,j-1) + xsi(c)
           end do
        end do
@@ -2586,18 +2719,15 @@ contains
        do fc = 1, num_hydrologyc
           c = filter_hydrologyc(fc)
 
-          ! use definition from soilwatermovement
-          xs1(c) = max(h2osoi_liq(c,1)-(eff_porosity(c,1)*dzmm(c,1)),0._r8)
-          ! this definition is not consistent with the check in SoilWaterMovement
-          
-          ! watmin addition to fix water balance errors
-          !xs1(c) = max(max(h2osoi_liq(c,1)-watmin,0._r8)- &
-          !     max(0._r8,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_ice(c,1)-watmin)),0._r8)
+          ! use definition consistent with soilwatermovement
+          ! h2osoi_liq has a lower bound of watmin
+          xs1(c) = max(h2osoi_liq(c,1)-max(eff_porosity(c,1)*dzmm(c,1),watmin),0._r8)
           h2osoi_liq(c,1) = h2osoi_liq(c,1) - xs1(c)
 
           !scs
           if( xs1(c) > oversaturation_threshold) then
              write(iulog,*) 'xs1err ',c, xs1(c),h2osoi_liq(c,1)-watmin,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_ice(c,1)-watmin)
+             write(iulog,*) 'xs1err2 ',c, h2osoi_liq(c,1),h2osoi_ice(c,1)
              call endrun(subgrid_index=c, &
                   subgrid_level=subgrid_level_column, &
                   msg="xs1err in soilhydrologymod")

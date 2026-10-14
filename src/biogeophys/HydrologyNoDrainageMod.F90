@@ -18,7 +18,8 @@ Module HydrologyNoDrainageMod
   use SoilStateType     , only : soilstate_type
   use SaturatedExcessRunoffMod, only : saturated_excess_runoff_type
   use InfiltrationExcessRunoffMod, only : infiltration_excess_runoff_type
-  use IrrigationMod, only : irrigation_type
+  use IrrigationMod     , only : irrigation_type
+  use SoilHydrologyMod  , only : AdjustNegativeSoilMoistureEvaporation
   use SnowHydrologyMod     , only : UpdateQuantitiesForNewSnow, RemoveSnowFromThawedWetlands, InitializeExplicitSnowPack
   use SnowHydrologyMod     , only : SnowCompaction, CombineSnowLayers, DivideSnowLayers, SnowCapping
   use SnowHydrologyMod     , only : SnowWater, ZeroEmptySnowLayers, BuildSnowFilter 
@@ -183,7 +184,7 @@ contains
     type(hlm_fates_interface_type), intent(inout) :: clm_fates
     type(atm2lnd_type)       , intent(in)    :: atm2lnd_inst
     type(soilstate_type)     , intent(inout) :: soilstate_inst
-    type(energyflux_type)    , intent(in)    :: energyflux_inst
+    type(energyflux_type)    , intent(inout) :: energyflux_inst
     type(temperature_type)   , intent(inout) :: temperature_inst
     type(water_type)         , intent(inout) :: water_inst
     type(aerosol_type)       , intent(inout) :: aerosol_inst
@@ -355,6 +356,11 @@ contains
            soilhydrology_inst, soilstate_inst, b_waterflux_inst, b_waterstate_inst, temperature_inst, &
            canopystate_inst, energyflux_inst, soil_water_retention_curve)
 
+      call AdjustNegativeSoilMoistureEvaporation (bounds, &
+           num_hydrologyc, filter_hydrologyc, &
+           energyflux_inst, b_waterstate_inst, &
+           b_waterdiagnostic_inst, b_waterflux_inst)   
+      
       if (use_vichydro) then
          ! mapping soilmoist from CLM to VIC layers for runoff calculations
          call CLMVICMap(bounds, num_hydrologyc, filter_hydrologyc, &
