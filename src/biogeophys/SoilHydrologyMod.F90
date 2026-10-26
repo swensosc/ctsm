@@ -1854,7 +1854,7 @@ contains
                 s2 = (h2osoi_liq(c,k_perch+1)/(dz(c,k_perch+1)*denh2o) &
                      + h2osoi_ice(c,k_perch+1)/(dz(c,k_perch+1)*denice))/watsat(c,k_perch+1)
 
-                if (s1 > s2) then 
+                if (s1 >= s2) then 
                    zwt_perched(c) = zi(c,k_perch-1)
                 else
                    m=(z(c,k_perch+1)-z(c,k_perch))/(s2-s1)
